@@ -1,7 +1,17 @@
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+Work in Progress
+----------------
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
+-   This will serve as our landing page for the Text Analytics for Team Summerhill
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+``` r
+library(feather)
+library(tidyverse)
+data <- read_feather("results_analytics_Toronto+ON.feather")
+head(data,1)
+```
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+    ## # A tibble: 1 × 3
+    ##                                                                          text
+    ##                                                                         <chr>
+    ## 1 Analyst  Customer Analytics job   SIRIUS XM CANADA INC.   Toronto  ON   Ind
+    ## # ... with 2 more variables: titles <chr>, urls <chr>
