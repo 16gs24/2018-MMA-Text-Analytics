@@ -26,7 +26,7 @@ knitr::opts_chunk$set(fig.width=10, fig.height=5, fig.path='Figs/',
 #Executive Summary
 - This project was produced for the Text Analytics Workshop for the Winter 2018 Masters of Management Analytics Cohort at Queen's University
 - The goal from the outset was to use text analytics techniques developed in class to examine jobs companies have posted on Indeed in Toronto
-and employ techniques covered in class including document clustering, topic modelling/LDA,
+and employ techniques discussed in class including document clustering, topic modelling, and visualization.
 - This document was rendered last on `r Sys.Date()`
 
 ```{r Import Libraries}
@@ -61,9 +61,9 @@ clean_corpus <- function(Corpus,DropWordVector){
 ```
 
 #Gathering Data
-- Beautiful Soup & Selenium were used in Python to access [Indeed](https://www.indeed.ca/jobs?q=analytics&l=Toronto&start=10) and scrape unsponsored jobs
-- ### unique jobs were scraped from the search terms: `analytics`,`etc`....
-- Jobs were passed from Python to R using [Feather](https://blog.rstudio.com/2016/03/29/feather/) to analyze
+- Beautiful Soup & Selenium were used in Python to access [Indeed](https://www.indeed.ca/jobs?q=analytics&l=Toronto&start=10 "Indeed:Analytics Jobs in Toronto") and scrape unsponsored job titles, companies, and postings
+- `later number` unique jobs were scraped from the search terms: `analytics`,`etc`....
+- Jobs were passed from Python to R using [Feather](https://blog.rstudio.com/2016/03/29/feather/ "Feather: A Fast On-Disk Format for Data Frames for R and Python, powered by Apache Arrow")
 
 ```{r Import Data,echo=TRUE}
 data <- read_feather("results_analytics_Toronto+ON.feather")
