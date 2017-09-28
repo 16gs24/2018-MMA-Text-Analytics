@@ -1,5 +1,5 @@
 ---
-title: "The Toronto Analytics Landscape"
+title: "The Toronto Analytics Job Landscape - R"
 author: "Summerhill"
 date: "`r Sys.Date()`"
 output:
@@ -20,14 +20,18 @@ knitr::opts_chunk$set(fig.width=10, fig.height=5, fig.path='Figs/',
 # echo=TRUE means the code is not shown in the final document
 # http://kbroman.org/knitr_knutshell/pages/Rmarkdown.html
 # http://rmarkdown.rstudio.com/developer_parameterized_reports.html
+# https://guides.github.com/features/mastering-markdown/
+
 ```
+- This document was rendered last on `r Sys.Date()`
+
 ##*THIS PROJECT IS STILL UNDER CONSTRUCTION*
 
 ##Executive Summary
 - This project was produced for the Text Analytics Workshop for the Winter 2018 Masters of Management Analytics Cohort at Queen's University
 - The goal from the outset was to use text analytics techniques developed in class to examine jobs companies have posted on Indeed in Toronto
 and employ techniques discussed in class including document clustering, topic modelling, and visualization.
-- This document was rendered last on `r Sys.Date()`
+
 
 ```{r Import Libraries}
 library(feather)
