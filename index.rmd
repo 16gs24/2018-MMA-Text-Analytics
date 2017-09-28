@@ -31,6 +31,7 @@ head(data2)
 ```{r functions}
 clean_corpus <- function(corpus,dropwords){
   corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, content_transformer(replace_abbreviation))
   corpus <- tm_map(corpus, stripWhitespace)
   corpus <- tm_map(corpus, removeNumbers)
   corpus <- tm_map(corpus, content_transformer(tolower))
@@ -40,8 +41,7 @@ clean_corpus <- function(corpus,dropwords){
 }
 
 #an alternative
-clean_corpus <- function(corpus){
-  corpus <- tm_map(corpus, content_transformer(replace_abbreviation))
+clean_corpus <- function(corpus,dropwords){
   corpus <- tm_map(corpus, removePunctuation)
   corpus <- tm_map(corpus, removeNumbers)
   corpus <- tm_map(corpus, removeWords, c(stopwords("en"), "coffee"))
