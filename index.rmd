@@ -1,6 +1,7 @@
 ---
 title: "The Toronto Analytics Landscape"
 author: "Summerhill"
+date: "`r Sys.Date()`"
 output:
   md_document:
     variant: markdown_github
@@ -10,22 +11,25 @@ output:
 
 ```{r global_options, include=FALSE}
 knitr::opts_chunk$set(fig.width=10, fig.height=5, fig.path='Figs/',
-                      warning=FALSE, message=FALSE,
-                      error=FALSE,include=FALSE)
+                      warning=FALSE, message=FALSE,error=FALSE,include=TRUE,echo=FALSE)
+
+# a note on options: 
+# include=TRUE means that output of the code is shown in the document (intended for graphics).
+# echo=TRUE means the code is shown in the document (intended for code that might be interesting for a reader).
+# message and warning are for the text for loading libraries or if a function fails
+# echo=TRUE means the code is not shown in the final document
+# http://kbroman.org/knitr_knutshell/pages/Rmarkdown.html
+# http://rmarkdown.rstudio.com/developer_parameterized_reports.html
 ```
 
 ##Work in Progress
 - This will serve as our landing page for the Text Analytics for Team Summerhill
+- This document was rendered last on `r Sys.Date()`
 
-```{r Import Data, include=TRUE}
+```{r Import Libraries}
 library(feather)
 library(tidyverse)
-data <- read_feather("results_analytics_Toronto+ON.feather")
-head(data,1)
-
-library(jsonlite)
-data2 <- fromJSON("indeed_search_analytics_Toronto+ON.json")
-head(data2)
+library(tm)
 ```
 
 ```{r functions}
@@ -40,36 +44,51 @@ clean_corpus <- function(corpus,dropwords){
   return(corpus)
 }
 
-#an alternative
-clean_corpus <- function(corpus,dropwords){
-  corpus <- tm_map(corpus, removePunctuation)
-  corpus <- tm_map(corpus, removeNumbers)
-  corpus <- tm_map(corpus, removeWords, c(stopwords("en"), "coffee"))
-  corpus <- tm_map(corpus, content_transformer(tolower))
-  corpus <- tm_map(corpus,stripWhitespace)
-  corpus <- tm_map(corpus,removePunctuation)
-  corpus <- tm_map(corpus,tolower)
-  corpus <- tm_map(corpus, removeWords, c(stopwords("en"),"coffee","mug"))
-  return(corpus)
+#cleaner but needs testing
+clean_corpus <- function(Corpus,DropWordVector){
+     Corpus <- Corpus %>%
+          tm_map(removePunctuation) %>%
+          tm_map(content_transformer(replace_abbreviation)) %>%
+          tm_map(stripWhitespace) %>%
+          tm_map(removeNumbers) %>%
+          tm_map(content_transformer(tolower)) %>%
+          tm_map(removeWords,c(stopwords("english"),DropWordVector))
+     return(Corpus)
 }
+```
+
+
+```{r Import Data,echo=TRUE}
+data <- read_feather("results_analytics_Toronto+ON.feather")
+head(data,1)
+```
+
+```{r Clean Data}
 
 ```
 
-```{r clean text}
+```{r Build 1gram 2 gram Lexicons}
+
+```
+
+```{r Word Frequencies}
+
+```
+
+```{r Convert to TDM}
+
+```
+
+```{r Word Cloud}
+
+```
+
+```{r Network Analysis}
 print("Hello World")
 ```
 
-```{r word cloud}
 
-```
 
-```{r network analysis}
-
-```
-
-```{r clustering}
-
-```
 
 
 
