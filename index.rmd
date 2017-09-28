@@ -7,6 +7,7 @@ output:
   html_document: default
   pdf_document: default
 ---
+
 ```{r global_options, include=FALSE}
 knitr::opts_chunk$set(fig.width=10, fig.height=5, fig.path='Figs/',
                       warning=FALSE, message=FALSE,
@@ -16,10 +17,59 @@ knitr::opts_chunk$set(fig.width=10, fig.height=5, fig.path='Figs/',
 ##Work in Progress
 - This will serve as our landing page for the Text Analytics for Team Summerhill
 
-```{r include=TRUE}
+```{r Import Data, include=TRUE}
 library(feather)
 library(tidyverse)
 data <- read_feather("results_analytics_Toronto+ON.feather")
 head(data,1)
+
+library(jsonlite)
+data2 <- fromJSON("indeed_search_analytics_Toronto+ON.json")
+head(data2)
 ```
+
+```{r functions}
+clean_corpus <- function(corpus,dropwords){
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, stripWhitespace)
+  corpus <- tm_map(corpus, removeNumbers)
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus, removeWords, 
+                   c(stopwords("en"), dropwords))
+  return(corpus)
+}
+
+#an alternative
+clean_corpus <- function(corpus){
+  corpus <- tm_map(corpus, content_transformer(replace_abbreviation))
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, removeNumbers)
+  corpus <- tm_map(corpus, removeWords, c(stopwords("en"), "coffee"))
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus,stripWhitespace)
+  corpus <- tm_map(corpus,removePunctuation)
+  corpus <- tm_map(corpus,tolower)
+  corpus <- tm_map(corpus, removeWords, c(stopwords("en"),"coffee","mug"))
+  return(corpus)
+}
+
+```
+
+```{r clean text}
+print("Hello World")
+```
+
+```{r word cloud}
+
+```
+
+```{r network analysis}
+
+```
+
+```{r clustering}
+
+```
+
+
 
