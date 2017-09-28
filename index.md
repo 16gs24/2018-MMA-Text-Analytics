@@ -15,3 +15,8 @@ head(data,1)
     ##                                                                         <chr>
     ## 1 Analyst  Customer Analytics job   SIRIUS XM CANADA INC.   Toronto  ON   Ind
     ## # ... with 2 more variables: titles <chr>, urls <chr>
+
+``` r
+library(jsonlite)
+data2 <- fromJSON("indeed_search_analytics_Toronto+ON.json")
+```
