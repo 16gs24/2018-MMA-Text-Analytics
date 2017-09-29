@@ -1,5 +1,5 @@
 ---
-title: "The Toronto Analytics Job Landscape - R"
+title: "The Toronto Analytics Job Landscape"
 author: "Summerhill"
 date: "`r Sys.Date()`"
 output:
@@ -11,7 +11,7 @@ output:
 
 ```{r global_options, include=FALSE}
 knitr::opts_chunk$set(fig.width=10, fig.height=5, fig.path='Figs/',
-                      warning=FALSE, message=FALSE,error=FALSE,include=TRUE,echo=FALSE)
+                      warning=FALSE, message=FALSE,error=FALSE,include=TRUE,echo=TRUE)
 
 # a note on options: 
 # include=TRUE means that output of the code is shown in the document (intended for graphics).
@@ -26,6 +26,7 @@ knitr::opts_chunk$set(fig.width=10, fig.height=5, fig.path='Figs/',
 - This document was rendered last on `r Sys.Date()`
 
 ##*THIS PROJECT IS STILL UNDER CONSTRUCTION*
+The intention will be to mask the code as the project approaches completion.
 
 ##Executive Summary
 - This project was produced for the Text Analytics Workshop for the Winter 2018 Masters of Management Analytics Cohort at Queen's University
@@ -36,6 +37,7 @@ and employ techniques discussed in class including document clustering, topic mo
 ```{r Import Libraries}
 library(feather)
 library(tidyverse)
+library(tidytext)
 library(tm)
 ```
 
@@ -70,9 +72,52 @@ clean_corpus <- function(Corpus,DropWordVector){
 - Jobs were passed from Python to R using [Feather](https://blog.rstudio.com/2016/03/29/feather/ "Feather: A Fast On-Disk Format for Data Frames for R and Python, powered by Apache Arrow")
 
 ```{r Import Data,echo=TRUE}
-data <- read_feather("results_analytics_Toronto+ON.feather")
-head(data,1)
+#list our data files
+searches <- c("BI","analytics")
+files <- list("results_Business Intelligence_Toronto+ON.feather",
+              "results_analytics_Toronto+ON.feather")
+
+#read and collapse to data frame
+datalist <- lapply(files,function(x){read_feather(x)})
+data <- bind_rows(datalist,.id="search")
+
+#fix quotations in column names
+names(data)
+names(data) <- c("search","text","titles","urls")
+
+#check if we have redundant jobs
+sum(duplicated(data[,2:4]))
+
+#reduce to distinct jobs and clean up search column
+data <- data[!duplicated(data[,2:4]),]
+data$search <- plyr::mapvalues(data$search,from=c("1","2"),to=searches)
+head(data)
+
 ```
+
+
+```{r Process unigrams Data}
+#word analysis
+data %>%
+     unnest_tokens(token="words",output="tokens",input=text) %>%
+     group_by(tokens) %>%
+     filter(!tokens %in% stopwords("en")) %>%
+     summarize(count=n()) %>%
+     arrange(desc(count))
+
+```
+
+```{r Process bigrams}
+
+data %>%
+     unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
+     group_by(tokens) %>%
+     filter(!tokens %in% stopwords("en")) %>%
+     summarize(count=n()) %>%
+     arrange(desc(count))
+```
+
+
 
 ```{r Clean Data}
 
