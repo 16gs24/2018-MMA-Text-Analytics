@@ -13,6 +13,7 @@ output:
 knitr::opts_chunk$set(fig.width=10, fig.height=5, fig.path='Figs/',
                       warning=FALSE, message=FALSE,error=FALSE,include=TRUE,echo=TRUE)
 
+rm(list=ls())
 # a note on options: 
 # include=TRUE means that output of the code is shown in the document (intended for graphics).
 # echo=TRUE means the code is shown in the document (intended for code that might be interesting for a reader).
@@ -39,31 +40,6 @@ library(feather)
 library(tidyverse)
 library(tidytext)
 library(tm)
-```
-
-```{r functions}
-clean_corpus <- function(corpus,dropwords){
-  corpus <- tm_map(corpus, removePunctuation)
-  corpus <- tm_map(corpus, content_transformer(replace_abbreviation))
-  corpus <- tm_map(corpus, stripWhitespace)
-  corpus <- tm_map(corpus, removeNumbers)
-  corpus <- tm_map(corpus, content_transformer(tolower))
-  corpus <- tm_map(corpus, removeWords, 
-                   c(stopwords("en"), dropwords))
-  return(corpus)
-}
-
-#cleaner but needs testing
-clean_corpus <- function(Corpus,DropWordVector){
-     Corpus <- Corpus %>%
-          tm_map(removePunctuation) %>%
-          tm_map(content_transformer(replace_abbreviation)) %>%
-          tm_map(stripWhitespace) %>%
-          tm_map(removeNumbers) %>%
-          tm_map(content_transformer(tolower)) %>%
-          tm_map(removeWords,c(stopwords("english"),DropWordVector))
-     return(Corpus)
-}
 ```
 
 ##Gathering Data
@@ -93,6 +69,10 @@ data <- data[!duplicated(data[,2:4]),]
 data$search <- plyr::mapvalues(data$search,from=c("1","2"),to=searches)
 head(data)
 
+
+test <- read_feather("data science.feather")
+test[1]
+
 ```
 
 
@@ -107,6 +87,9 @@ data %>%
 
 ```
 
+seems like some 'low value' words mixed in here. it'll take some work to get somewhere we'd like to be with this.
+
+
 ```{r Process bigrams}
 
 data %>%
@@ -117,13 +100,20 @@ data %>%
      arrange(desc(count))
 ```
 
+It looks like our data is quite dirty. It'll be extremely taxing 
 
 
-```{r Clean Data}
+```{r Cleaner bigrams}
+bigrams_sep <- data %>% 
+     unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
+     separate(col=tokens,into=c("word1","word2"),sep=" ") %>%
+     filter(!word1 %in% stopwords("en"),
+            !word2 %in% stopwords("en")) %>%
+     unite(tokens,word1,word2,sep=" ") %>%
+     count(tokens,sort=TRUE)
 
-```
-
-```{r Build 1gram 2 gram Lexicons}
+bigrams_sep
+class(bigrams_sep)
 
 ```
 
