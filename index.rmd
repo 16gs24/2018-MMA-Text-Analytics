@@ -39,6 +39,7 @@ library(feather)
 library(tidyverse)
 library(tidytext)
 library(tm)
+library(wordcloud)
 ```
 
 ```{r functions}
@@ -121,6 +122,15 @@ data %>%
 
 ```{r Clean Data}
 
+#Converting text column into VectorSource
+data_source <- VectorSource(data$text)
+
+#Creating a corpus out of the data
+data_corpus <- VCorpus(data_source)
+
+#clean data
+data_corpus <- clean_corpus(data_corpus)
+
 ```
 
 ```{r Build 1gram 2 gram Lexicons}
@@ -133,9 +143,24 @@ data %>%
 
 ```{r Convert to TDM}
 
+#Converting corpus into TDM
+data_tdm <- TermDocumentMatrix(data_corpus)
 ```
 
 ```{r Word Cloud}
+
+#convert TDM into matrix
+data_m <- as.matrix(data_tdm)
+
+#count term frequencies and sort in descending order
+term_frequency <- sort(rowSums(data_m),decreasing = TRUE)
+term_frequency[1:15]
+
+#create data frame of different word frequencies
+words <- data.frame(term = names(term_frequency),num=term_frequency)
+
+#create word cloud
+wordcloud(words$term,words$num,max.words = 75, colors = "blue")
 
 ```
 
