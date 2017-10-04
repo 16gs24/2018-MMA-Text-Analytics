@@ -11,7 +11,7 @@ output:
 
 ```{r global_options, include=FALSE}
 knitr::opts_chunk$set(fig.width=10, fig.height=5, fig.path='Figs/',
-                      warning=FALSE, message=FALSE,error=FALSE,include=TRUE,echo=TRUE)
+                      warning=FALSE,message=FALSE,error=FALSE,include=TRUE,echo=TRUE)
 
 # a note on options: 
 # include=TRUE means that output of the code is shown in the document (intended for graphics).
@@ -45,31 +45,9 @@ library(tidyverse)
 library(tidytext)
 library(tm)
 library(wordcloud)
-```
-
-```{r functions}
-clean_corpus <- function(corpus,dropwords){
-  corpus <- tm_map(corpus, removePunctuation)
-  corpus <- tm_map(corpus, content_transformer(replace_abbreviation))
-  corpus <- tm_map(corpus, stripWhitespace)
-  corpus <- tm_map(corpus, removeNumbers)
-  corpus <- tm_map(corpus, content_transformer(tolower))
-  corpus <- tm_map(corpus, removeWords, 
-                   c(stopwords("en"), dropwords))
-  return(corpus)
-}
-
-#cleaner but needs testing
-clean_corpus <- function(Corpus,DropWordVector){
-     Corpus <- Corpus %>%
-          tm_map(removePunctuation) %>%
-          tm_map(content_transformer(replace_abbreviation)) %>%
-          tm_map(stripWhitespace) %>%
-          tm_map(removeNumbers) %>%
-          tm_map(content_transformer(tolower)) %>%
-          tm_map(removeWords,c(stopwords("english"),DropWordVector))
-     return(Corpus)
-}
+library(widyr)
+library(ggraph)
+library(igraph)
 ```
 
 ##Gathering Data
@@ -90,11 +68,12 @@ searches <- c("analytics",
                  "machine learning",
                  "business intelligence")
 
-files <- paste(searches,".feather",sep="")
+files <- paste("data/feather/",searches,".feather",sep="")
 
 #read and collapse to data frame
 datalist <- lapply(as.list(files),function(x){read_feather(x)})
 data <- bind_rows(datalist,.id="search")
+rm(datalist)
 
 #fix quotations in column names
 names(data) <- c("search","company","text","titles","urls")
@@ -117,21 +96,29 @@ unique(data$search)
 data %>%
      group_by(search) %>%
      summarize(found_jobs=n())
+
 ```
 
+We expect 200 jobs for each result, and removing the duplicate jobs we can begin to see some overlap. Analytics had more jobs since it was searched first, topics discussed later like BI still has alot of jobs, which suggests it may be a more distinct field.
 
 ```{r Process unigrams Data}
 
 #what words to avoid
 stops <- stopwords("en")
 
-data %>%
+unigrams <- data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
      group_by(tokens) %>%
      filter(!tokens %in% stops) %>%
-     summarize(count=n()) %>%
-     arrange(desc(count))
+     count(tokens,sort=TRUE)
+
+unigrams
 ```
+
+
+
+
+
 
 ```{r Process bigrams}
 #look a bi-grams
@@ -169,27 +156,47 @@ data_corpus <- VCorpus(data_source)
 ```{r Convert to TDM}
 
 #Converting corpus into TDM
-data_tdm <- TermDocumentMatrix(data_corpus)
+#data_tdm <- TermDocumentMatrix(data_corpus)
 ```
 
 ```{r Word Cloud}
 
-#convert TDM into matrix
-data_m <- as.matrix(data_tdm)
+# #convert TDM into matrix
+# data_m <- as.matrix(data_tdm)
+# 
+# #count term frequencies and sort in descending order
+# term_frequency <- sort(rowSums(data_m),decreasing = TRUE)
+# term_frequency[1:15]
+# 
+# #create data frame of different word frequencies
+# words <- data.frame(term = names(term_frequency),num=term_frequency)
+# 
+# #create word cloud
+# wordcloud(words$term,words$num,max.words = 75, colors = "blue")
 
-#count term frequencies and sort in descending order
-term_frequency <- sort(rowSums(data_m),decreasing = TRUE)
-term_frequency[1:15]
-
-#create data frame of different word frequencies
-words <- data.frame(term = names(term_frequency),num=term_frequency)
-
-#create word cloud
-wordcloud(words$term,words$num,max.words = 75, colors = "blue")
-
+wordcloud(unigrams$tokens,unigrams$n,max.words=100)
 ```
 
-```{r Network Analysis}
+```{r pairwise count}
+
+data %>%
+     unnest_tokens(token="words",output="tokens",input=text) %>%
+     filter(tokens %in% c("sas","python","excel","powerpoint","sql",
+                          "r","hadoop","spark","java","scala","aws","tableau","microstrategy")) %>%
+     pairwise_count(tokens,urls,sort=TRUE)
+```
+
+
+
+
+
+```{r pairwise correlation}
+#pairwise correlation
+data %>%
+     unnest_tokens(token="words",output="tokens",input=text) %>%
+     filter(tokens %in% c("sas","python","excel","powerpoint","sql",
+                          "r","hadoop","spark","java","scala","aws","tableau","microstrategy")) %>%
+     pairwise_cor(tokens,urls,sort=TRUE)
 
 ```
 

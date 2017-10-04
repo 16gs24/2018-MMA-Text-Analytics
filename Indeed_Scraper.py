@@ -19,7 +19,7 @@ class IndeedJobs:
 		self.urls = []
 		self.postings = []
 
-#grab the text we need. enter the link indeed gives, grab text, clean and return
+#grab the text we need. enter the link indeed gives, grab text, return
 	def __PopulatePostingForURL(self, url):
 		try:
 			soup = self.__PopulateSoupObj(url)
@@ -27,8 +27,8 @@ class IndeedJobs:
 			for script in soup(["script", "style"]):
 				script.extract()
 			text = soup.get_text()
-			text = re.sub("[^a-zA-Z.+3#&]", " ", text)
-			
+			#text = re.sub("[^a-zA-Z.+3#&]", " ", text)
+			text = text.lower()
 			return text
 		except:
 			return "NA"
@@ -45,6 +45,7 @@ class IndeedJobs:
 			soup = self.__PopulateSoupObj(base_url)
 			
 			current_page_postings = soup.find_all('div', {'data-tn-component': 'organicJob'})
+			print('loading page', i+1,'of jobs for {}'.format(self.query))
 			
 			for posting in current_page_postings:
 				titles=posting.find('a', {'data-tn-element':'jobTitle'}).text
@@ -56,10 +57,6 @@ class IndeedJobs:
 			'company' : company, 'text' : text}
 				
 				self.postings.append(tempdict)
-				
-
-				print('\n--------------')
-				print(titles)
 
 		return self.urls
 
@@ -77,11 +74,11 @@ class IndeedJobs:
 #write to feather to pass to R
 		dataframe = pd.DataFrame.from_dict(self.postings)
 		filename = '{}.feather'.format(self.query)
-		feather.write_dataframe(dataframe, filename)
+		feather.write_dataframe(dataframe, 'data/feather/' + filename)
 
 #write to JSON to view data
 		filename = '{}.json'.format(self.query)
-		with open(filename, 'x') as fp:
+		with open('data/json/'+ filename, 'x') as fp:
 			json.dump(self.postings, fp)
 
 #initialize terms and run searches
@@ -100,7 +97,7 @@ def searchnet(searchlist,numPages):
 		indeed = IndeedJobs(search, "Toronto+ON", numPages)
 		indeed.run()
 		
-searchnet(searches,1)
+searchnet(searches,10)
 		
 		
 
