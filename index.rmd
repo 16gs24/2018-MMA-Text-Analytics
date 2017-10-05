@@ -10,8 +10,10 @@ output:
 ---
 
 ```{r global_options, include=FALSE}
-knitr::opts_chunk$set(fig.width=10, fig.height=5, fig.path='Figs/',
+knitr::opts_chunk$set(fig.width=10, fig.height=10, fig.path='Figs/',
                       warning=FALSE,message=FALSE,error=FALSE,include=TRUE,echo=TRUE)
+
+set.seed(42)
 
 # a note on options: 
 # include=TRUE means that output of the code is shown in the document (intended for graphics).
@@ -72,6 +74,7 @@ files <- paste("data/feather/",searches,".feather",sep="")
 
 #read and collapse to data frame
 datalist <- lapply(as.list(files),function(x){read_feather(x)})
+test <- datalist[[1]]
 data <- bind_rows(datalist,.id="search")
 rm(datalist)
 
@@ -81,108 +84,121 @@ names(data) <- c("search","company","text","titles","urls")
 #check if we have redundant jobs
 sum(duplicated(data[,2:4]))
 
+#examine the uniqueness of our data
+#lapply(data,function(x){length(unique(x))})
+NumJobs <- length(unique(data$urls))
+
 #reduce to distinct jobs and clean up search column
-data <- data[!duplicated(data[,2:4]),]
+data <- data[!duplicated(data$urls),]
 data$search <- plyr::mapvalues(data$search,
                                from=unique(data$search),
                                to=searches)
 
 head(data)
-unique(data$search)
+```
+```{r preprocessing}
+RemovePattern <- function(vector,pattern){gsub(pattern=pattern,replacement="",vector)}
+#data <- map(data,RemovePattern,"\n")
+
 ```
 
 ```{r Jobs Found}
-#investigate redundant jobs. Should return 20/each if they are all unique.
-data %>%
+#investigate redundant jobs. Should return 200/each if they are all unique.
+
+rollup <- data %>%
      group_by(search) %>%
-     summarize(found_jobs=n())
+     summarize(NumberUniquePostings=n()) 
+
+#sort by search order
+left_join(data.frame(search=searches),rollup,by="search")
 
 ```
 
-We expect 200 jobs for each result, and removing the duplicate jobs we can begin to see some overlap. Analytics had more jobs since it was searched first, topics discussed later like BI still has alot of jobs, which suggests it may be a more distinct field.
+- We expect 200 jobs for each result, and removing the duplicate jobs in the order they were searched.
+- Interestingly, searching 200 jobs in analytics returns only 113 unique jobs, some redundancy exists.
+- As we search overlapping terms, data sciencist, data insights, fewer and fewer unique jobs are returned
+- Interestingly, each additional search term returns a surprising amount of new jobs. 75 jobs are shown for machine learning that were not found for data scientist, a fairly similar field.
+- Business Intelligence seems to be fairly lateral to other search terms, returning many unique jobs
+
+
 
 ```{r Process unigrams Data}
 
 #what words to avoid
 stops <- stopwords("en")
 
+#process n-grams
 unigrams <- data %>%
-     unnest_tokens(token="words",output="tokens",input=text) %>%
-     group_by(tokens) %>%
-     filter(!tokens %in% stops) %>%
-     count(tokens,sort=TRUE)
+     unnest_tokens(token="words",output="unigrams",input=text) %>%
+     group_by(unigrams) %>%
+     filter(!unigrams %in% stops) %>%
+     count(unigrams,sort=TRUE)
 
-unigrams
+#visualize
+wordcloud(unigrams$unigrams,unigrams$n,max.words=100)
+
 ```
 
-
-
+- Looking at a simple word frequency, we see out of the box our data is very messy
+- The boiler plate at the end of each job posting, encouraging people to apply, discussing company acolades and culture distort our analysis. Let's spend some time cleaning up 0-value words.
 
 
 
 ```{r Process bigrams}
 #look a bi-grams
-data %>%
+bigrams_totals <- data %>%
      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
      separate(col=tokens,into=c("word1","word2"),sep=" ") %>%
      filter(!word1 %in% stops, !word2 %in% stops) %>%
      unite(tokens,word1,word2,sep=" ") %>%
      count(tokens,sort=TRUE)
+
+head(bigrams_totals,20)
+
+wordcloud(bigrams_totals$tokens,bigrams_totals$n,max.words=20)
 ```
 
 
 
-```{r Clean Data}
+```{r Unigram frequency}
 
-#Converting text column into VectorSource
-data_source <- VectorSource(data$text)
+#determine how frequent each word occurs across job postings. Don't skip stop words yet.
+unigrams_freq <- data %>%
+     unnest_tokens(token="words",output="tokens",input=text) %>%
+     select(urls,tokens) %>%
+     distinct() %>%
+     group_by(tokens) %>%
+     count(tokens,sort=TRUE) %>%
+     ungroup() %>%
+     mutate(frequency=n/NumJobs)
 
-#Creating a corpus out of the data
-data_corpus <- VCorpus(data_source)
+tail(unigrams_freq,20)
 
-#clean data
-#data_corpus <- clean_corpus(data_corpus)
+#determine how frequent each bigram is across job postings. Don't skip stop words yet.
+bigrams_freq <- data %>%
+     unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
+     select(urls,tokens) %>%
+     distinct() %>%
+     group_by(tokens) %>%
+     count(tokens,sort=TRUE) %>%
+     ungroup() %>%
+     mutate(frequency=n/NumJobs)
+
+head(bigrams_freq,20)
 
 ```
 
-```{r Build 1gram 2 gram Lexicons}
 
-```
-
-```{r Word Frequencies}
-
-```
-
-```{r Convert to TDM}
-
-#Converting corpus into TDM
-#data_tdm <- TermDocumentMatrix(data_corpus)
-```
-
-```{r Word Cloud}
-
-# #convert TDM into matrix
-# data_m <- as.matrix(data_tdm)
-# 
-# #count term frequencies and sort in descending order
-# term_frequency <- sort(rowSums(data_m),decreasing = TRUE)
-# term_frequency[1:15]
-# 
-# #create data frame of different word frequencies
-# words <- data.frame(term = names(term_frequency),num=term_frequency)
-# 
-# #create word cloud
-# wordcloud(words$term,words$num,max.words = 75, colors = "blue")
-
-wordcloud(unigrams$tokens,unigrams$n,max.words=100)
-```
 
 ```{r pairwise count}
 
+skills <- c("sas","python","excel","powerpoint","sql",
+                          "r","hadoop","spark","java","scala","aws",
+                          "tableau","microstrategy","spss","c++")
+
 data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
-     filter(tokens %in% c("sas","python","excel","powerpoint","sql",
-                          "r","hadoop","spark","java","scala","aws","tableau","microstrategy")) %>%
+     filter(tokens %in% skills) %>%
      pairwise_count(tokens,urls,sort=TRUE)
 ```
 
@@ -194,12 +210,21 @@ data %>%
 #pairwise correlation
 data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
-     filter(tokens %in% c("sas","python","excel","powerpoint","sql",
-                          "r","hadoop","spark","java","scala","aws","tableau","microstrategy")) %>%
-     pairwise_cor(tokens,urls,sort=TRUE)
+     filter(tokens %in% skills) %>%
+     pairwise_cor(tokens,urls,sort=TRUE) %>%
+     filter(correlation > .1) %>%
+     graph_from_data_frame() %>%
+     ggraph(layout = "fr") +
+     geom_edge_link(aes(edge_alpha = correlation), show.legend = FALSE) +
+     geom_node_point(color = "lightblue", size = 5) +
+     geom_node_text(aes(label = name), repel = TRUE) +
+     theme_void()
 
 ```
 
+```{r clustering}
+
+```
 
 
 

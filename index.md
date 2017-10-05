@@ -1,4 +1,4 @@
--   This document was rendered last on 2017-10-04
+-   This document was rendered last on 2017-10-05
 
 *THIS PROJECT IS STILL UNDER CONSTRUCTION*
 ------------------------------------------
@@ -54,6 +54,7 @@ files <- paste("data/feather/",searches,".feather",sep="")
 
 #read and collapse to data frame
 datalist <- lapply(as.list(files),function(x){read_feather(x)})
+test <- datalist[[1]]
 data <- bind_rows(datalist,.id="search")
 rm(datalist)
 
@@ -67,8 +68,12 @@ sum(duplicated(data[,2:4]))
     ## [1] 966
 
 ``` r
+#examine the uniqueness of our data
+#lapply(data,function(x){length(unique(x))})
+NumJobs <- length(unique(data$urls))
+
 #reduce to distinct jobs and clean up search column
-data <- data[!duplicated(data[,2:4]),]
+data <- data[!duplicated(data$urls),]
 data$search <- plyr::mapvalues(data$search,
                                from=unique(data$search),
                                to=searches)
@@ -88,166 +93,216 @@ head(data)
     ## # ... with 3 more variables: text <chr>, titles <chr>, urls <chr>
 
 ``` r
-unique(data$search)
+RemovePattern <- function(vector,pattern){gsub(pattern=pattern,replacement="",vector)}
+#data <- map(data,RemovePattern,"\n")
 ```
-
-    ## [1] "analytics"             "data analyst"          "data scientist"       
-    ## [4] "analytics strategy"    "data insights"         "marketing analytics"  
-    ## [7] "analytics reporting"   "machine learning"      "business intelligence"
 
 ``` r
-#investigate redundant jobs. Should return 20/each if they are all unique.
-data %>%
+#investigate redundant jobs. Should return 200/each if they are all unique.
+
+rollup <- data %>%
      group_by(search) %>%
-     summarize(found_jobs=n())
+     summarize(NumberUniquePostings=n()) 
+
+#sort by search order
+left_join(data.frame(search=searches),rollup,by="search")
 ```
 
-    ## # A tibble: 9 × 2
-    ##                  search found_jobs
-    ##                   <chr>      <int>
-    ## 1             analytics        113
-    ## 2   analytics reporting         77
-    ## 3    analytics strategy         79
-    ## 4 business intelligence        107
-    ## 5          data analyst        104
-    ## 6         data insights         82
-    ## 7        data scientist        101
-    ## 8      machine learning         75
-    ## 9   marketing analytics         96
+    ##                  search NumberUniquePostings
+    ## 1             analytics                  100
+    ## 2          data analyst                   82
+    ## 3        data scientist                   90
+    ## 4    analytics strategy                   65
+    ## 5         data insights                   50
+    ## 6   marketing analytics                   71
+    ## 7   analytics reporting                   47
+    ## 8      machine learning                   57
+    ## 9 business intelligence                   74
 
-We expect 200 jobs for each result, and removing the duplicate jobs we can begin to see some overlap. Analytics had more jobs since it was searched first, topics discussed later like BI still has alot of jobs, which suggests it may be a more distinct field.
+-   We expect 200 jobs for each result, and removing the duplicate jobs in the order they were searched.
+-   Interestingly, searching 200 jobs in analytics returns only 113 unique jobs, some redundancy exists.
+-   As we search overlapping terms, data sciencist, data insights, fewer and fewer unique jobs are returned
+-   Interestingly, each additional search term returns a surprising amount of new jobs. 75 jobs are shown for machine learning that were not found for data scientist, a fairly similar field.
+-   Business Intelligence seems to be fairly lateral to other search terms, returning many unique jobs
 
 ``` r
 #what words to avoid
 stops <- stopwords("en")
 
+#process n-grams
 unigrams <- data %>%
-     unnest_tokens(token="words",output="tokens",input=text) %>%
-     group_by(tokens) %>%
-     filter(!tokens %in% stops) %>%
-     count(tokens,sort=TRUE)
+     unnest_tokens(token="words",output="unigrams",input=text) %>%
+     group_by(unigrams) %>%
+     filter(!unigrams %in% stops) %>%
+     count(unigrams,sort=TRUE)
 
-unigrams
+#visualize
+wordcloud(unigrams$unigrams,unigrams$n,max.words=100)
 ```
 
-    ## # A tibble: 25,988 × 2
-    ##        tokens     n
-    ##         <chr> <int>
-    ## 1        data  6502
-    ## 2         job  4267
-    ## 3    business  3773
-    ## 4  experience  3492
-    ## 5        will  3199
-    ## 6       apply  2768
-    ## 7         new  2470
-    ## 8        work  2377
-    ## 9        team  2341
-    ## 10          1  2048
-    ## # ... with 25,978 more rows
+![](Figs/Process%20unigrams%20Data-1.png)
+
+-   Looking at a simple word frequency, we see out of the box our data is very messy
+-   The boiler plate at the end of each job posting, encouraging people to apply, discussing company acolades and culture distort our analysis. Let's spend some time cleaning up 0-value words.
 
 ``` r
 #look a bi-grams
-data %>%
+bigrams_totals <- data %>%
      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
      separate(col=tokens,into=c("word1","word2"),sep=" ") %>%
      filter(!word1 %in% stops, !word2 %in% stops) %>%
      unite(tokens,word1,word2,sep=" ") %>%
      count(tokens,sort=TRUE)
+
+head(bigrams_totals,20)
 ```
 
-    ## # A tibble: 109,384 × 2
+    ## # A tibble: 20 × 2
     ##                   tokens     n
     ##                    <chr> <int>
-    ## 1              apply now   857
-    ## 2               days ago   824
-    ## 3  business intelligence   643
-    ## 4        job description   641
-    ## 5             ago easily   595
-    ## 6           easily apply   595
-    ## 7       machine learning   591
-    ## 8     style display:none   560
-    ## 9         data scientist   530
-    ## 10               1 style   483
-    ## # ... with 109,374 more rows
+    ## 1              apply now   699
+    ## 2               days ago   559
+    ## 3  business intelligence   442
+    ## 4       machine learning   435
+    ## 5        job description   414
+    ## 6             ago easily   409
+    ## 7           easily apply   409
+    ## 8     style display:none   382
+    ## 9           social media   334
+    ## 10        data scientist   330
+    ## 11               1 style   329
+    ## 12      talent community   313
+    ## 13          new password   300
+    ## 14             full time   270
+    ## 15             now start   270
+    ## 16          data analyst   261
+    ## 17        required field   253
+    ## 18       password forgot   251
+    ## 19       forgot password   250
+    ## 20            contact us   233
 
 ``` r
-#Converting text column into VectorSource
-data_source <- VectorSource(data$text)
-
-#Creating a corpus out of the data
-data_corpus <- VCorpus(data_source)
-
-#clean data
-#data_corpus <- clean_corpus(data_corpus)
+wordcloud(bigrams_totals$tokens,bigrams_totals$n,max.words=20)
 ```
 
+![](Figs/Process%20bigrams-1.png)
+
 ``` r
-#Converting corpus into TDM
-#data_tdm <- TermDocumentMatrix(data_corpus)
+#determine how frequent each word occurs across job postings. Don't skip stop words yet.
+unigrams_freq <- data %>%
+     unnest_tokens(token="words",output="tokens",input=text) %>%
+     select(urls,tokens) %>%
+     distinct() %>%
+     group_by(tokens) %>%
+     count(tokens,sort=TRUE) %>%
+     ungroup() %>%
+     mutate(frequency=n/NumJobs)
+
+tail(unigrams_freq,20)
 ```
 
-``` r
-# #convert TDM into matrix
-# data_m <- as.matrix(data_tdm)
-# 
-# #count term frequencies and sort in descending order
-# term_frequency <- sort(rowSums(data_m),decreasing = TRUE)
-# term_frequency[1:15]
-# 
-# #create data frame of different word frequencies
-# words <- data.frame(term = names(term_frequency),num=term_frequency)
-# 
-# #create word cloud
-# wordcloud(words$term,words$num,max.words = 75, colors = "blue")
+    ## # A tibble: 20 × 3
+    ##                                                       tokens     n
+    ##                                                        <chr> <int>
+    ## 1                                                youtubefind     1
+    ## 2                                                    youwill     1
+    ## 3                                                     youyou     1
+    ## 4                                                         yp     1
+    ## 5                                                        yui     1
+    ## 6                                                      yukon     1
+    ## 7                                                     yummly     1
+    ## 8                                                       yuzu     1
+    ## 9                                                     z299.3     1
+    ## 10                                                      z795     1
+    ## 11                                  zdbrtvigjurnvorcmgdwo4ld     1
+    ## 12                                    zdirectoriesmapssearch     1
+    ## 13 zealandpakistanpanamaperuphilippinespolandportugalrussian     1
+    ## 14                                                  zerobug2     1
+    ## 15                                       ziffdavis.icims.com     1
+    ## 16                                                     zones     1
+    ## 17                                       zonesqualifications     1
+    ## 18                                                   zooming     1
+    ## 19                                                    zoomoo     1
+    ## 20                    zwehzuaeckqfwhfbvl5ljgjisgxycvxlu0paha     1
+    ## # ... with 1 more variables: frequency <dbl>
 
-wordcloud(unigrams$tokens,unigrams$n,max.words=100)
+``` r
+#determine how frequent each bigram is across job postings. Don't skip stop words yet.
+bigrams_freq <- data %>%
+     unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
+     select(urls,tokens) %>%
+     distinct() %>%
+     group_by(tokens) %>%
+     count(tokens,sort=TRUE) %>%
+     ungroup() %>%
+     mutate(frequency=n/NumJobs)
+
+head(bigrams_freq,20)
 ```
 
-![](Figs/Word%20Cloud-1.png)
+    ## # A tibble: 20 × 3
+    ##             tokens     n frequency
+    ##              <chr> <int>     <dbl>
+    ## 1           of the   442 0.6949686
+    ## 2             in a   377 0.5927673
+    ## 3           in the   367 0.5770440
+    ## 4           to the   362 0.5691824
+    ## 5          will be   351 0.5518868
+    ## 6       ability to   332 0.5220126
+    ## 7    experience in   308 0.4842767
+    ## 8         with the   307 0.4827044
+    ## 9  job description   276 0.4339623
+    ## 10         to work   275 0.4323899
+    ## 11          we are   267 0.4198113
+    ## 12        for this   264 0.4150943
+    ## 13       apply now   263 0.4135220
+    ## 14         for the   257 0.4040881
+    ## 15    knowledge of   253 0.3977987
+    ## 16          with a   250 0.3930818
+    ## 17            is a   248 0.3899371
+    ## 18         and the   245 0.3852201
+    ## 19         you are   242 0.3805031
+    ## 20         sign in   239 0.3757862
 
 ``` r
+skills <- c("sas","python","excel","powerpoint","sql",
+                          "r","hadoop","spark","java","scala","aws",
+                          "tableau","microstrategy","spss","c++")
+
 data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
-     filter(tokens %in% c("sas","python","excel","powerpoint","sql",
-                          "r","hadoop","spark","java","scala","aws","tableau","microstrategy")) %>%
+     filter(tokens %in% skills) %>%
      pairwise_count(tokens,urls,sort=TRUE)
 ```
 
-    ## # A tibble: 156 × 3
+    ## # A tibble: 182 × 3
     ##         item1      item2     n
     ##         <chr>      <chr> <dbl>
     ## 1      python          r    85
     ## 2           r     python    85
     ## 3      python        sql    76
     ## 4         sql     python    76
-    ## 5       excel powerpoint    69
-    ## 6  powerpoint      excel    69
+    ## 5       excel powerpoint    68
+    ## 6  powerpoint      excel    68
     ## 7           r        sql    66
     ## 8         sql          r    66
     ## 9       excel        sql    63
     ## 10        sql      excel    63
-    ## # ... with 146 more rows
+    ## # ... with 172 more rows
 
 ``` r
 #pairwise correlation
 data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
-     filter(tokens %in% c("sas","python","excel","powerpoint","sql",
-                          "r","hadoop","spark","java","scala","aws","tableau","microstrategy")) %>%
-     pairwise_cor(tokens,urls,sort=TRUE)
+     filter(tokens %in% skills) %>%
+     pairwise_cor(tokens,urls,sort=TRUE) %>%
+     filter(correlation > .1) %>%
+     graph_from_data_frame() %>%
+     ggraph(layout = "fr") +
+     geom_edge_link(aes(edge_alpha = correlation), show.legend = FALSE) +
+     geom_node_point(color = "lightblue", size = 5) +
+     geom_node_text(aes(label = name), repel = TRUE) +
+     theme_void()
 ```
 
-    ## # A tibble: 156 × 3
-    ##         item1      item2 correlation
-    ##         <chr>      <chr>       <dbl>
-    ## 1       spark     hadoop   0.6305199
-    ## 2      hadoop      spark   0.6305199
-    ## 3       excel powerpoint   0.5031618
-    ## 4  powerpoint      excel   0.5031618
-    ## 5      python          r   0.4789493
-    ## 6           r     python   0.4789493
-    ## 7       spark     python   0.4238287
-    ## 8      python      spark   0.4238287
-    ## 9         sas          r   0.3647545
-    ## 10          r        sas   0.3647545
-    ## # ... with 146 more rows
+![](Figs/pairwise%20correlation-1.png)
