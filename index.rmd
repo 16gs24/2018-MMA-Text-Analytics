@@ -224,6 +224,76 @@ data %>%
 
 ```{r clustering}
 
+#creating tokens - once we come up with list of stop words, should use anti_join here to remove them
+
+data_token <- data %>%
+     unnest_tokens(word,text)
+
+#creating unique document identifiers for each job posting 
+data_token$ID <- paste(data_token$company,data_token$titles,sep="_")
+
+#removing useless columns - 
+data_token <- data_token[,-(1:4)]
+head(data_token)
+
+#frequency of words by document
+
+data_count <- data_token %>%
+     count(ID,word,sort=TRUE)
+
+#creating table of total count of words in each document 
+data_count2 <- data_count %>%
+     group_by(ID) %>%
+     summarise(total = sum(n))
+
+#joining the total count information with primary dataset
+data_count <- right_join(data_count,data_count2)
+
+#creating the correlation column so we can filter out words <1% or >80% of docs 
+data_count <- data_count %>%
+     mutate(correlation = n/total) %>%
+     arrange(desc(correlation))
+
+#Note for Gage: I'm noticing something odd for some of these postings. Look at the head of the data frame. The Brain Hunter Systems job posting only has 2 words but when I go to the actual posting itself, it clearly has way more than that 
+
+head(data_count)
+
+
+#Correlation filters
+minCor = 0.01
+maxCor = 0.80
+
+#filter out words <1% or >80% of docs 
+data_count <- data_count %>%
+     filter(correlation > minCor & correlation < maxCor)
+
+#casting tidy text data into DTM
+data_dtm <- data_count %>%
+     cast_dtm(ID,word,n)
+
+#looking at most popular words, min freq of 20
+findFreqTerms(data_dtm,lowfreq=20)
+
+#accumulator of clustering results 
+clust_results <- data.frame()
+
+#run kmeans for all clusters up to 15
+set.seed(50)
+for(i in 1:15) {
+     k_clust <- kmeans(data_dtm, centers=i, iter.max =100)
+     #Combine cluster number and cluster together, write to df
+     clust_results <- rbind(clust_results,cbind(i,k_clust$tot.withinss))
+}
+names(clust_results) <- c("cluster","results")
+
+#elbow plot
+ggplot(clust_results,aes(x=cluster,y=results,group=1))+
+geom_jitter()+geom_line()
+## above plot shows that at about 12 clusters, any additional clusters would lose significance
+
+#Let's look at 8 clusters
+kmeans8 <- kmeans(data_dtm,centers=8)
+
 ```
 
 
