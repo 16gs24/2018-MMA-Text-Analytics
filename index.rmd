@@ -308,8 +308,11 @@ data_df <- as.data.frame(data_m)
 
 #calculate distance
 data_dist <- dist(data_df,method="euclidean")
+
+#creating and plotting hierarchical cluster
 hc <- hclust(data_dist)
 plot(hc)
+rect.hclust(hc,k=8,border="red")
 ```
 
 
