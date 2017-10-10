@@ -291,9 +291,25 @@ ggplot(clust_results,aes(x=cluster,y=results,group=1))+
 geom_jitter()+geom_line()
 ## above plot shows that at about 12 clusters, any additional clusters would lose significance
 
-#Let's look at 8 clusters
+#Let's look at 8 clusters: need to figure out how to PLOT the clusters here
 kmeans8 <- kmeans(data_dtm,centers=8)
 
+
+###hierarchical clustering
+
+#convert to TDM
+data_tdm <- t(data_dtm)
+
+#reducing sparsity 
+dim(data_tdm)
+data_clean <- removeSparseTerms(data_tdm,sparse = 0.80)
+data_m <- as.matrix(data_clean)
+data_df <- as.data.frame(data_m)
+
+#calculate distance
+data_dist <- dist(data_df,method="euclidean")
+hc <- hclust(data_dist)
+plot(hc)
 ```
 
 
