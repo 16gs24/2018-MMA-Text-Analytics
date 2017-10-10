@@ -50,6 +50,8 @@ library(wordcloud)
 library(widyr)
 library(ggraph)
 library(igraph)
+library(knitr)
+library(ggridges)
 ```
 
 ##Gathering Data
@@ -80,13 +82,15 @@ rm(datalist)
 
 #fix quotations in column names
 names(data) <- c("search","company","text","titles","urls")
+data <- data %>% select(company,titles,text,search,urls)
 
 #check if we have redundant jobs
 sum(duplicated(data[,2:4]))
 
 #examine the uniqueness of our data
-#lapply(data,function(x){length(unique(x))})
-NumJobs <- length(unique(data$urls))
+NumJobs <- n_distinct(data$urls)
+
+?n_distinct
 
 #reduce to distinct jobs and clean up search column
 data <- data[!duplicated(data$urls),]
@@ -94,12 +98,21 @@ data$search <- plyr::mapvalues(data$search,
                                from=unique(data$search),
                                to=searches)
 
-head(data)
+kable(head(data))
 ```
-```{r preprocessing}
-RemovePattern <- function(vector,pattern){gsub(pattern=pattern,replacement="",vector)}
-#data <- map(data,RemovePattern,"\n")
+- Our data returned `NumJobs` unique jobs within our search.
+- It's clear a considerable amount of cleaning is in order 
 
+```{r preprocessing}
+RemovePattern <- function(vector,pattern){gsub(pattern=pattern,replacement=" ",vector)}
+data <- dmap(data,RemovePattern,"\n")
+data <- dmap(data,RemovePattern,"\\(")   
+data <- dmap(data,RemovePattern,"\\)")
+data <- dmap(data,RemovePattern,"\\{[a-zA-Z0-9]\\}")
+kable(data[80,])
+
+test <- unique(data$company)
+tail(test,100)
 ```
 
 ```{r Jobs Found}
@@ -107,11 +120,12 @@ RemovePattern <- function(vector,pattern){gsub(pattern=pattern,replacement="",ve
 
 rollup <- data %>%
      group_by(search) %>%
-     summarize(NumberUniquePostings=n()) 
+     summarize(NumberUniquePostings=n())
+
+str(rollup)
 
 #sort by search order
-left_join(data.frame(search=searches),rollup,by="search")
-
+kable(left_join(data.frame(search=searches),rollup,by="search"))
 ```
 
 - We expect 200 jobs for each result, and removing the duplicate jobs in the order they were searched.
@@ -120,42 +134,94 @@ left_join(data.frame(search=searches),rollup,by="search")
 - Interestingly, each additional search term returns a surprising amount of new jobs. 75 jobs are shown for machine learning that were not found for data scientist, a fairly similar field.
 - Business Intelligence seems to be fairly lateral to other search terms, returning many unique jobs
 
+```{r Remove empty jobs}
+#how long are our jobs
+data %>%
+     unnest_tokens(token="words",output="unigrams",input=text) %>%
+     group_by(urls) %>%
+     count(search,urls,sort=TRUE) %>%
+     filter(n<3000) %>%
+     ggplot(aes(x=n,y=search))+geom_density_ridges() %>%
+     labs(title="Stacked Histograms of Word Counts less than 3000")
+```
+- We see that there are alot of 0 information jobs, postings with only a few words, let's look at what some of those are.
 
+```{r remove outliers}
+MinWords <- 300
+
+empty_urls <- data %>%
+     unnest_tokens(token="words",output="unigrams",input=text) %>%
+     group_by(urls) %>%
+     count(urls,sort=TRUE) %>%
+     filter(n < MinWords)
+
+data %>% 
+     filter(urls %in% empty_urls$urls) %>%
+     head()
+
+data <- data %>% 
+     filter(!urls %in% empty_urls$urls)
+     
+```
+
+- We see here a variety of failed scrapings, or 0 info postings
+
+
+```{r long postings}
+long_postings <- data %>%
+     unnest_tokens(token="words",output="unigrams",input=text) %>%
+     group_by(urls) %>%
+     count(urls,sort=TRUE) %>%
+     filter(n >3000)
+
+kable(data %>%
+          filter(urls %in% long_postings$urls) %>%
+          head(2))
+```
+
+```{r}
+unigrams <- data %>%
+     unnest_tokens(token="words",output="unigrams",input=text) %>%
+     group_by(unigrams) %>%
+     count(unigrams,sort=TRUE)
+
+wordcloud(unigrams$unigrams,unigrams$n,max.words=100)
+```
+
+
+- Looking at a simple word frequency, we see out of the box our data is very messy
+- The boiler plate at the end of each job posting, encouraging people to apply, discussing company acolades and culture distort our analysis. Let's spend some time cleaning up *common stopwords*, *job specific words* and *html*
 
 ```{r Process unigrams Data}
-
 #what words to avoid
-stops <- stopwords("en")
+stop <- read.csv("stopwords.csv",stringsAsFactors = FALSE)
+stop <- rbind(stop,data.frame(words=stopwords("en")))
+
 
 #process n-grams
 unigrams <- data %>%
      unnest_tokens(token="words",output="unigrams",input=text) %>%
      group_by(unigrams) %>%
-     filter(!unigrams %in% stops) %>%
+     filter(!unigrams %in% stop$words) %>%
      count(unigrams,sort=TRUE)
 
 #visualize
 wordcloud(unigrams$unigrams,unigrams$n,max.words=100)
-
 ```
 
-- Looking at a simple word frequency, we see out of the box our data is very messy
-- The boiler plate at the end of each job posting, encouraging people to apply, discussing company acolades and culture distort our analysis. Let's spend some time cleaning up 0-value words.
-
-
-
+- We are starting to look better. Let's take a look at our bigrams.
 ```{r Process bigrams}
 #look a bi-grams
 bigrams_totals <- data %>%
      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
      separate(col=tokens,into=c("word1","word2"),sep=" ") %>%
-     filter(!word1 %in% stops, !word2 %in% stops) %>%
+     filter(!word1 %in% stop$words, !word2 %in% stop$words) %>%
      unite(tokens,word1,word2,sep=" ") %>%
      count(tokens,sort=TRUE)
 
-head(bigrams_totals,20)
+kable(head(bigrams_totals,20))
 
-wordcloud(bigrams_totals$tokens,bigrams_totals$n,max.words=20)
+wordcloud(bigrams_totals$tokens,bigrams_totals$n,max.words=10)
 ```
 
 
@@ -167,18 +233,26 @@ unigrams_freq <- data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
      select(urls,tokens) %>%
      distinct() %>%
+     filter(!tokens %in% stop$words) %>%
      group_by(tokens) %>%
      count(tokens,sort=TRUE) %>%
      ungroup() %>%
      mutate(frequency=n/NumJobs)
 
-tail(unigrams_freq,20)
+head(unigrams_freq,20)
+```
+
+
+```{r}
 
 #determine how frequent each bigram is across job postings. Don't skip stop words yet.
 bigrams_freq <- data %>%
      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
      select(urls,tokens) %>%
      distinct() %>%
+     separate(col=tokens,into=c("word1","word2"),sep=" ") %>%
+     filter(!word1 %in% stop$words, !word2 %in% stop$words) %>%
+     unite(tokens,word1,word2,sep=" ") %>%
      group_by(tokens) %>%
      count(tokens,sort=TRUE) %>%
      ungroup() %>%
@@ -192,14 +266,21 @@ head(bigrams_freq,20)
 
 ```{r pairwise count}
 
-skills <- c("sas","python","excel","powerpoint","sql",
-                          "r","hadoop","spark","java","scala","aws",
-                          "tableau","microstrategy","spss","c++")
+skills <- c("sas","python","sql","r","spss",
+            "hadoop","spark","java","scala","aws","c++",
+            "excel","powerpoint","mapreduce",
+          "qlik","tableau","microstrategy","azure")
 
 data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
      filter(tokens %in% skills) %>%
      pairwise_count(tokens,urls,sort=TRUE)
+
+data %>%
+     unnest_tokens(token="words",output="tokens",input=text) %>%
+     filter(tokens %in% skills) %>%
+     ggplot(aes(x=tokens)) +
+     geom_bar()
 ```
 
 
@@ -212,7 +293,7 @@ data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
      filter(tokens %in% skills) %>%
      pairwise_cor(tokens,urls,sort=TRUE) %>%
-     filter(correlation > .1) %>%
+     filter(correlation > .2) %>%
      graph_from_data_frame() %>%
      ggraph(layout = "fr") +
      geom_edge_link(aes(edge_alpha = correlation), show.legend = FALSE) +
