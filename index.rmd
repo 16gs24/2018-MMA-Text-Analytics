@@ -271,40 +271,52 @@ data_count <- data_count %>%
 data_dtm <- data_count %>%
      cast_dtm(ID,word,n)
 
+#creating TDM
+data_tdm <- t(data_dtm)
+
+#reducing sparsity of TDM before clustering
+dim(data_tdm)
+data_clean <- removeSparseTerms(data_tdm,sparse = 0.80)
+data_m <- as.matrix(data_clean)
+data_df <- as.data.frame(data_m)
+
 #looking at most popular words, min freq of 20
-findFreqTerms(data_dtm,lowfreq=20)
+findFreqTerms(data_tdm,lowfreq=20)
 
 #accumulator of clustering results 
 clust_results <- data.frame()
 
 #run kmeans for all clusters up to 15
 set.seed(50)
-for(i in 1:15) {
-     k_clust <- kmeans(data_dtm, centers=i, iter.max =100)
+for(i in 1:10) {
+     k_clust <- kmeans(data_m, centers=i, iter.max =100)
      #Combine cluster number and cluster together, write to df
      clust_results <- rbind(clust_results,cbind(i,k_clust$tot.withinss))
 }
 names(clust_results) <- c("cluster","results")
 
-#elbow plot
+#scree elbow plot
 ggplot(clust_results,aes(x=cluster,y=results,group=1))+
-geom_jitter()+geom_line()
-## above plot shows that at about 12 clusters, any additional clusters would lose significance
+geom_jitter()+geom_line()+scale_x_continuous(name='# of clusters',limits = c(1, 10))
 
-#Let's look at 8 clusters: need to figure out how to PLOT the clusters here
-kmeans8 <- kmeans(data_dtm,centers=8)
+## above plot shows that at about 3 clusters, any additional clusters would lose significance
 
+#need to create principal components, regular kmeans will kick out an error because it uses princomp function
+pc <- prcomp(data_m)
+plot(pc,xlab="Principal Components")
+summary(pc)
+comp <- data.frame(pc$x[,1:12])
+plot(comp)
+
+#Let's look at 3 clusters
+kmeans3 <- kmeans(comp,centers=3)
+
+#Plot clusters
+library(cluster)
+clusplot(comp, kmeans3$cluster, color=TRUE, shade=TRUE,
+         labels=2, lines=0, main="K-means cluster plot")
 
 ###hierarchical clustering
-
-#convert to TDM
-data_tdm <- t(data_dtm)
-
-#reducing sparsity 
-dim(data_tdm)
-data_clean <- removeSparseTerms(data_tdm,sparse = 0.80)
-data_m <- as.matrix(data_clean)
-data_df <- as.data.frame(data_m)
 
 #calculate distance
 data_dist <- dist(data_df,method="euclidean")
