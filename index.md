@@ -182,7 +182,7 @@ head(bigrams_totals,20)
     ## 20            contact us   233
 
 ``` r
-wordcloud(bigrams_totals$tokens,bigrams_totals$n,max.words=20)
+wordcloud(bigrams_totals$tokens,bigrams_totals$n,max.words=10)
 ```
 
 ![](Figs/Process%20bigrams-1.png)
