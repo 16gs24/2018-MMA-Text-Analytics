@@ -390,7 +390,7 @@ geom_point()+geom_line()
 ## above plot shows that at about 3 clusters, any additional clusters would lose significance
 
 #need to create principal components, regular kmeans will kick out an error because it uses princomp function
-pc <- prcomp(data_m)
+pc <- prcomp(data_cluster)
 plot(pc,xlab="Principal Components")
 summary(pc)
 comp <- data.frame(pc$x[,1:12])
