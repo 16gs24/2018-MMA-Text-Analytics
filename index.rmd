@@ -52,6 +52,7 @@ library(ggraph)
 library(igraph)
 library(knitr)
 library(ggridges)
+library(purrrlyr)
 ```
 
 ##Gathering Data
@@ -302,143 +303,176 @@ data %>%
 
 ```{r clustering}
 
-#creating tokens - once we come up with list of stop words, should use anti_join here to remove them
-# 
-# data_token <- data %>%
-#      unnest_tokens(word,text)
-# 
-# #creating unique document identifiers for each job posting
-# data_token$ID <- paste(data_token$company,data_token$titles,sep="_")
-# 
-# #removing useless columns -
-# data_token <- data_token[,-(1:4)]
-# head(data_token)
-# 
-# #frequency of words by document
-# 
-# data_count <- data_token %>%
-#      count(ID,word,sort=TRUE)
-# 
-# #creating table of total count of words in each document
-# data_count2 <- data_count %>%
-#      group_by(ID) %>%
-#      summarise(total = sum(n))
-# 
-# #joining the total count information with primary dataset
-# data_count <- right_join(data_count,data_count2)
-# 
-# #creating the correlation column so we can filter out words <1% or >80% of docs
-# data_count <- data_count %>%
-#      mutate(correlation = n/total) %>%
-#      arrange(desc(correlation))
-# 
-# #Note for Gage: I'm noticing something odd for some of these postings. Look at the head of the data frame. The Brain Hunter Systems job posting only has 2 words but when I go to the actual posting itself, it clearly has way more than that
-# 
-# head(data_count)
-# 
-# 
-# #Correlation filters
-# minCor = 0.01
-# maxCor = 0.80
-# 
-# #filter out words <1% or >80% of docs
-# data_count <- data_count %>%
-#      filter(correlation > minCor & correlation < maxCor)
-# 
-# #casting tidy text data into DTM
-# data_dtm <- data_count %>%
-#      cast_dtm(ID,word,n)
-# 
-# #creating TDM
-# data_tdm <- t(data_dtm)
-# 
-# #reducing sparsity of TDM before clustering
-# dim(data_tdm)
-# data_clean <- removeSparseTerms(data_tdm,sparse = 0.80)
-# data_m <- as.matrix(data_clean)
-# data_df <- as.data.frame(data_m)
-# 
-# #looking at most popular words, min freq of 20
-# findFreqTerms(data_tdm,lowfreq=20)
-# 
-# #accumulator of clustering results
-# clust_results <- data.frame()
-# 
-# #run kmeans for all clusters up to 15
-# set.seed(50)
-# for(i in 1:10) {
-#      k_clust <- kmeans(data_m, centers=i, iter.max =100)
-#      #Combine cluster number and cluster together, write to df
-#      clust_results <- rbind(clust_results,cbind(i,k_clust$tot.withinss))
-# }
-# names(clust_results) <- c("cluster","results")
-# 
-# #scree elbow plot
-# ggplot(clust_results,aes(x=cluster,y=results,group=1))+
-# geom_point()+geom_line()+scale_x_continuous(name='# of clusters',limits = c(1, 10))
-# 
-# #if you want specific points look at scaling the axes then use seq(1:10)
-# 
-# ## above plot shows that at about 3 clusters, any additional clusters would lose significance
-# 
-# #need to create principal components, regular kmeans will kick out an error because it uses princomp function
-# pc <- prcomp(data_m)
-# plot(pc,xlab="Principal Components")
-# summary(pc)
-# comp <- data.frame(pc$x[,1:12])
-# plot(comp)
-# 
-# #Let's look at 3 clusters
-# kmeans3 <- kmeans(comp,centers=3)
-# 
-# #Plot clusters
-# library(cluster)
-# clusplot(comp, kmeans3$cluster, color=TRUE, shade=TRUE,
-#          labels=2, lines=0, main="K-means cluster plot")
-# 
-# ###hierarchical clustering
-# 
-# #calculate distance
-# data_dist <- dist(data_df,method="euclidean")
-# 
-# #creating and plotting hierarchical cluster
-# hc <- hclust(data_dist)
-# plot(hc)
-# rect.hclust(hc,k=8,border="red")
+#Frequency filters
+minFreq = 0.01
+maxFreq = 0.80
+
+#filtering out stopwords and infrequent/frequent words from unigrams
+unigram_clean <- data %>%
+     unnest_tokens(token="words",output="tokens",input=text) %>%
+     select(urls,tokens) %>%
+     distinct() %>%
+     filter(!tokens %in% stop$words) %>%
+     group_by(tokens) %>%
+     count(tokens,sort=TRUE) %>%
+     mutate(frequency=n/NumJobs) %>%
+     filter(frequency> minFreq & frequency< maxFreq)
+
+#creating identifier
+data$ID <- paste(data$company,data$titles,sep="_")
+
+#creating clean unigrams DTM
+unigram_cluster <- data %>%
+     unnest_tokens(token="words",output="tokens",input=text) %>%
+     select(ID,tokens) %>%
+     filter(tokens %in% unigram_clean$tokens) %>% 
+     count(ID,tokens,sort=TRUE) %>%
+     ungroup() %>%
+     spread(tokens,n,fill='0') 
+
+#filtering out stopwords and infrequent/frequent words from bigrams
+bigram_clean <- data %>%
+     unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
+     select(urls,tokens) %>%
+     distinct() %>%
+     separate(col=tokens,into=c("word1","word2"),sep=" ") %>%
+     filter(!word1 %in% stop$words, !word2 %in% stop$words) %>%
+     unite(tokens,word1,word2,sep=" ") %>%
+     group_by(tokens) %>%
+     count(tokens,sort=TRUE) %>%
+     ungroup() %>%
+     mutate(frequency=n/NumJobs) %>%
+     filter(frequency> minFreq & frequency< maxFreq)
+
+#creating clean bigrams DTM
+bigram_cluster <- data %>%
+     unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
+     select(ID,tokens) %>%
+     filter(tokens %in% bigram_clean$tokens) %>% 
+     count(ID,tokens,sort=TRUE) %>%
+     ungroup() %>%
+     spread(tokens,n,fill='0') 
+
+#Joining unigrams and bigrams cluster data together 
+
+data_cluster <- left_join(unigram_cluster,bigram_cluster)
+
+#transposing so terms become the rows
+data_cluster <- t(data_cluster)
+data_cluster <- as.data.frame(data_cluster)
+#reducing sparsity of TDM before clustering
+dim(data_cluster)
+data_clean <- removeSparseTerms(data_cluster,sparse = 0.80)
+data_m <- as.matrix(data_clean)
+data_df <- as.data.frame(data_m)
+
+#looking at most popular words, min freq of 20
+findFreqTerms(data_cluster,lowfreq=20)
+
+#accumulator of clustering results
+clust_results <- data.frame()
+
+#run kmeans for all clusters up to 15
+set.seed(100)
+for(i in 1:20) {
+     k_clust <- kmeans(data_cluster[,-1], centers=i, iter.max =100)
+     #Combine cluster number and cluster together, write to df
+     clust_results <- rbind(clust_results,cbind(i,k_clust$tot.withinss))
+}
+names(clust_results) <- c("cluster","results")
+
+#scree elbow plot
+ggplot(clust_results,aes(x=cluster,y=results,group=1))+
+geom_point()+geom_line()
+
+#if you want specific points look at scaling the axes then use seq(1:10)
+
+## above plot shows that at about 3 clusters, any additional clusters would lose significance
+
+#need to create principal components, regular kmeans will kick out an error because it uses princomp function
+pc <- prcomp(data_m)
+plot(pc,xlab="Principal Components")
+summary(pc)
+comp <- data.frame(pc$x[,1:12])
+plot(comp)
+
+#Let's look at 3 clusters
+kmeans3 <- kmeans(comp,centers=3)
+
+#Plot clusters
+library(cluster)
+clusplot(comp, kmeans3$cluster, color=TRUE, shade=TRUE,
+         labels=2, lines=0, main="K-means cluster plot")
+
+###hierarchical clustering
+
+#calculate distance
+data_dist <- dist(data_df,method="euclidean")
+
+#creating and plotting hierarchical cluster
+hc <- hclust(data_dist)
+plot(hc)
+rect.hclust(hc,k=8,border="red")
 ```
 
 
 
 ```{r Clustering with dplyr}
-# freqs_to_use <- data %>%
+
+# #filtering out stopwords and infrequent/frequent words from unigrams
+# unigram_clean <- data %>%
 #      unnest_tokens(token="words",output="tokens",input=text) %>%
 #      select(urls,tokens) %>%
 #      distinct() %>%
 #      filter(!tokens %in% stop$words) %>%
 #      group_by(tokens) %>%
 #      count(tokens,sort=TRUE) %>%
+#      mutate(frequency=n/NumJobs) %>%
+#      filter(frequency> minFreq & frequency< maxFreq)
+# 
+# #creating identifier
+# data$ID <- paste(data$company,data$titles,sep="_")
+# 
+# #creating clean unigrams TDM
+# unigram_cluster <- data %>%
+#      unnest_tokens(token="words",output="tokens",input=text) %>%
+#      select(ID,tokens) %>%
+#      filter(tokens %in% unigram_clean$tokens) %>% 
+#      count(ID,tokens,sort=TRUE) %>%
+#      ungroup() %>%
+#      spread(tokens,n,fill='0') 
+# 
+# #filtering out stopwords and infrequent/frequent words from bigrams
+# bigram_clean <- data %>%
+#      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
+#      select(urls,tokens) %>%
+#      distinct() %>%
+#      separate(col=tokens,into=c("word1","word2"),sep=" ") %>%
+#      filter(!word1 %in% stop$words, !word2 %in% stop$words) %>%
+#      unite(tokens,word1,word2,sep=" ") %>%
+#      group_by(tokens) %>%
+#      count(tokens,sort=TRUE) %>%
 #      ungroup() %>%
 #      mutate(frequency=n/NumJobs) %>%
-#      filter(frequency>MinFreq & frequnecy<MaxFreq)
+#      filter(frequency> minFreq & frequency< maxFreq)
 # 
-# unis <- data %>%
-#      unnest tokens %>%
-#      select(-c(list of cols to drop)) %>%
-#      filter(tokens %in% freqs_to_use$tokens) %>% #this takes care of stop words too
-#      count() %>%
-#      spread(tokens, but not the keys you use) # this should result in the features being words 
-# # and the rows being different jobs. This is a dtm.
+# #creating clean bigrams TDM
+# bigram_cluster <- data %>%
+#      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
+#      select(ID,tokens) %>%
+#      filter(tokens %in% bigram_clean$tokens) %>% 
+#      count(ID,tokens,sort=TRUE) %>%
+#      ungroup() %>%
+#      spread(tokens,n,fill='0') 
 # 
-# bigrams <-# same process. Look at the separate/unite functions for getting rid of stop words
+# #Joining unigrams and bigrams cluster data together 
 # 
-# datatocluster <- bind_cols(bigrams,unis)     
-# #the result of this is a data frame where your rows are each job, maybe you need a key to identify
-# # and each column is a unigram or bigram, and the data is how many times it was mentioned in the job
+# data_cluster <- full_join(unigram_cluster,bigram_cluster)
 # 
 # #do the same clustering
 # 
-# #when you now do this route, all your stop words should be gone. 
-     
+# #when you now do this route, all your stop words should be gone.
+
 ```
 
 
