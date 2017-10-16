@@ -301,10 +301,11 @@ data %>%
 
 ```
 
-```{r clustering}
+```{r clustering - Scree Plot}
 
 #Frequency filters
-minFreq = 0.01
+
+minFreq = 0.10
 maxFreq = 0.80
 
 #filtering out stopwords and infrequent/frequent words from unigrams
@@ -344,37 +345,29 @@ bigram_clean <- data %>%
      mutate(frequency=n/NumJobs) %>%
      filter(frequency> minFreq & frequency< maxFreq)
 
-#creating clean bigrams DTM
+#creating clean bigrams dataset
 bigram_cluster <- data %>%
      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
      select(ID,tokens) %>%
      filter(tokens %in% bigram_clean$tokens) %>% 
      count(ID,tokens,sort=TRUE) %>%
      ungroup() %>%
-     spread(tokens,n,fill='0') 
+     spread(tokens,n,fill=0) 
 
 #Joining unigrams and bigrams cluster data together 
 
 data_cluster <- left_join(unigram_cluster,bigram_cluster)
 
-#transposing so terms become the rows
-data_cluster <- t(data_cluster)
+#convert to dataframe
 data_cluster <- as.data.frame(data_cluster)
-#reducing sparsity of TDM before clustering
-dim(data_cluster)
-data_clean <- removeSparseTerms(data_cluster,sparse = 0.80)
-data_m <- as.matrix(data_clean)
-data_df <- as.data.frame(data_m)
 
-#looking at most popular words, min freq of 20
-findFreqTerms(data_cluster,lowfreq=20)
 
 #accumulator of clustering results
 clust_results <- data.frame()
 
-#run kmeans for all clusters up to 15
+#run kmeans for all clusters up to 30
 set.seed(100)
-for(i in 1:20) {
+for(i in 1:30) {
      k_clust <- kmeans(data_cluster[,-1], centers=i, iter.max =100)
      #Combine cluster number and cluster together, write to df
      clust_results <- rbind(clust_results,cbind(i,k_clust$tot.withinss))
@@ -384,99 +377,70 @@ names(clust_results) <- c("cluster","results")
 #scree elbow plot
 ggplot(clust_results,aes(x=cluster,y=results,group=1))+
 geom_point()+geom_line()
+```
+The scree elbow plot above does not really have an elbow but seems like at around the 10th cluster, the drop in within sum-of-squares becomes considerably lower for each additional cluster.    
 
-#if you want specific points look at scaling the axes then use seq(1:10)
+```{r}
 
-## above plot shows that at about 3 clusters, any additional clusters would lose significance
+#convert features in dataframe from character to numeric class
+data_cluster[,2:785] <- sapply(data_cluster[,2:785],as.numeric)
 
-#need to create principal components, regular kmeans will kick out an error because it uses princomp function
-pc <- prcomp(data_cluster)
+
+# #need to create principal components, regular kmeans will kick out an error because it uses princomp function
+pc <- prcomp(data_cluster[,-1])
 plot(pc,xlab="Principal Components")
 summary(pc)
-comp <- data.frame(pc$x[,1:12])
-plot(comp)
+comp <- data.frame(pc$x[,1:15])
+ 
 
+```
+
+
+```{r clustering - kmeans}
 #Let's look at 3 clusters
-kmeans3 <- kmeans(comp,centers=3)
+kmeans2 <- kmeans(data_cluster[,-1],centers=2)
+kmeans3 <- kmeans(data_cluster[,-1],centers=3)
+kmeans6 <- kmeans(data_cluster[,-1],centers=6)
+kmeans10 <- kmeans(data_cluster[,-1],centers=10)
 
 #Plot clusters
 library(cluster)
-clusplot(comp, kmeans3$cluster, color=TRUE, shade=TRUE,
+kmeans2_plot <- clusplot(comp, kmeans2$cluster, color=TRUE, shade=FALSE,
          labels=2, lines=0, main="K-means cluster plot")
+kmeans3_plot <- clusplot(comp, kmeans3$cluster, color=TRUE, shade=FALSE,
+         labels=3, lines=0, main="K-means cluster plot") #3 clusters look the best
+kmeans6_plot <- clusplot(comp, kmeans6$cluster, color=TRUE, shade=FALSE,
+         labels=2, lines=0, main="K-means cluster plot")
+kmeans10_plot <- clusplot(comp, kmeans10$cluster, color=TRUE, shade=FALSE,
+         labels=2, lines=0, main="K-means cluster plot")
+```
 
-###hierarchical clustering
+```{r clustering - hierarchical}
+
+rownames(data_cluster) <- data_cluster$ID
 
 #calculate distance
-data_dist <- dist(data_df,method="euclidean")
+data_dist <- dist(data_cluster[,-1])
 
 #creating and plotting hierarchical cluster
 hc <- hclust(data_dist)
-plot(hc)
-rect.hclust(hc,k=8,border="red")
+hcd <- as.dendrogram(hc)
+
+hcd %>% set("branches_k_color",k=10) %>%
+     plot(main="Hierarchical Clustering")
+
+hcd_color <- set(hcd,"branches_k_color",k=10)
+     
+plot(cut(hcd_color,h=100)$upper,
+     main="Upper tree of cut at h=100")
+plot(cut(hcd_color,h=100)$lower[[2]],
+     main="Second branch of lower tree with cut at h=100")
+
+pdf("C:/R/hcplot.pdf", width=40, height=15)
+hcd %>% set("branches_k_color",k=10) %>%
+     plot(main="Hierarchical Clustering")
+dev.off()
 ```
-
-
-
-```{r Clustering with dplyr}
-
-# #filtering out stopwords and infrequent/frequent words from unigrams
-# unigram_clean <- data %>%
-#      unnest_tokens(token="words",output="tokens",input=text) %>%
-#      select(urls,tokens) %>%
-#      distinct() %>%
-#      filter(!tokens %in% stop$words) %>%
-#      group_by(tokens) %>%
-#      count(tokens,sort=TRUE) %>%
-#      mutate(frequency=n/NumJobs) %>%
-#      filter(frequency> minFreq & frequency< maxFreq)
-# 
-# #creating identifier
-# data$ID <- paste(data$company,data$titles,sep="_")
-# 
-# #creating clean unigrams TDM
-# unigram_cluster <- data %>%
-#      unnest_tokens(token="words",output="tokens",input=text) %>%
-#      select(ID,tokens) %>%
-#      filter(tokens %in% unigram_clean$tokens) %>% 
-#      count(ID,tokens,sort=TRUE) %>%
-#      ungroup() %>%
-#      spread(tokens,n,fill='0') 
-# 
-# #filtering out stopwords and infrequent/frequent words from bigrams
-# bigram_clean <- data %>%
-#      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
-#      select(urls,tokens) %>%
-#      distinct() %>%
-#      separate(col=tokens,into=c("word1","word2"),sep=" ") %>%
-#      filter(!word1 %in% stop$words, !word2 %in% stop$words) %>%
-#      unite(tokens,word1,word2,sep=" ") %>%
-#      group_by(tokens) %>%
-#      count(tokens,sort=TRUE) %>%
-#      ungroup() %>%
-#      mutate(frequency=n/NumJobs) %>%
-#      filter(frequency> minFreq & frequency< maxFreq)
-# 
-# #creating clean bigrams TDM
-# bigram_cluster <- data %>%
-#      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
-#      select(ID,tokens) %>%
-#      filter(tokens %in% bigram_clean$tokens) %>% 
-#      count(ID,tokens,sort=TRUE) %>%
-#      ungroup() %>%
-#      spread(tokens,n,fill='0') 
-# 
-# #Joining unigrams and bigrams cluster data together 
-# 
-# data_cluster <- full_join(unigram_cluster,bigram_cluster)
-# 
-# #do the same clustering
-# 
-# #when you now do this route, all your stop words should be gone.
-
-```
-
-
-
 
 
 
