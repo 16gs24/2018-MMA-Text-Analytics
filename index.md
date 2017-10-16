@@ -1,9 +1,15 @@
--   This document was rendered last on 2017-10-05
+-   This document was rendered last on 2017-10-16
 
 *THIS PROJECT IS STILL UNDER CONSTRUCTION*
 ------------------------------------------
 
 The intention will be to mask the code as the project approaches completion.
+
+Authors
+-------
+
+-   To shower praise for ingenuity on the project, contact [Melody Liu](https://www.linkedin.com/in/meifei-melody-liu/)
+-   For criticism of things we couldn't be achieved in 4 weeks contact [Gage Sonntag](https://www.linkedin.com/in/gage-sonntag/)
 
 Executive Summary
 -----------------
@@ -19,26 +25,16 @@ Project Rationale
 -   Moving beyond that, we were interested in topic modelling and how the choice of words signals relationships between roles
 -   Job postings fit the 'bag of words' or ngram approach taught in class. Not many employers say **"We don't want someone who knows Python"**
 
-``` r
-library(feather)
-library(tidyverse)
-library(tidytext)
-library(tm)
-library(wordcloud)
-library(widyr)
-library(ggraph)
-library(igraph)
-```
-
 Gathering Data
 --------------
 
 -   Beautiful Soup & Selenium were used in Python to access [Indeed](https://www.indeed.ca/jobs?q=analytics&l=Toronto&start=10 "Indeed:Analytics Jobs in Toronto") and scrape unsponsored job titles, companies, and postings
--   `later number` unique jobs were scraped from the search terms: `analytics`,`etc`....
+-   1800 jobs were scraped from 9 search terms we believed captured the jobs most MMA students are pursuing.
 -   Jobs were passed from Python to R using [Feather](https://blog.rstudio.com/2016/03/29/feather/ "Feather: A Fast On-Disk Format for Data Frames for R and Python, powered by Apache Arrow")
 
 ``` r
 rm(list=ls())
+
 #list our data files
 searches <- c("analytics",
                  "data analyst",
@@ -60,64 +56,22 @@ rm(datalist)
 
 #fix quotations in column names
 names(data) <- c("search","company","text","titles","urls")
+data <- data %>% select(company,titles,text,search,urls)
 
-#check if we have redundant jobs
-sum(duplicated(data[,2:4]))
-```
-
-    ## [1] 966
-
-``` r
 #examine the uniqueness of our data
-#lapply(data,function(x){length(unique(x))})
-NumJobs <- length(unique(data$urls))
+NumJobs <- n_distinct(data$urls)
 
 #reduce to distinct jobs and clean up search column
 data <- data[!duplicated(data$urls),]
 data$search <- plyr::mapvalues(data$search,
                                from=unique(data$search),
                                to=searches)
-
-head(data)
 ```
 
-    ## # A tibble: 6 × 5
-    ##      search                          company
-    ##       <chr>                            <chr>
-    ## 1 analytics                 \n\n\nKPMG LLP\n
-    ## 2 analytics       \n\n\nThe Globe and Mail\n
-    ## 3 analytics          \n\n\nYork University\n
-    ## 4 analytics \n\n\nCanadian Tire: Corporate\n
-    ## 5 analytics         \n\n\nAmerican Express\n
-    ## 6 analytics               \n\n\nScotiabank\n
-    ## # ... with 3 more variables: text <chr>, titles <chr>, urls <chr>
+-   Our data returned 636 unique jobs within our search.
+-   It's clear a considerable amount of cleaning is in order
 
-``` r
-RemovePattern <- function(vector,pattern){gsub(pattern=pattern,replacement="",vector)}
-#data <- map(data,RemovePattern,"\n")
-```
-
-``` r
-#investigate redundant jobs. Should return 200/each if they are all unique.
-
-rollup <- data %>%
-     group_by(search) %>%
-     summarize(NumberUniquePostings=n()) 
-
-#sort by search order
-left_join(data.frame(search=searches),rollup,by="search")
-```
-
-    ##                  search NumberUniquePostings
-    ## 1             analytics                  100
-    ## 2          data analyst                   82
-    ## 3        data scientist                   90
-    ## 4    analytics strategy                   65
-    ## 5         data insights                   50
-    ## 6   marketing analytics                   71
-    ## 7   analytics reporting                   47
-    ## 8      machine learning                   57
-    ## 9 business intelligence                   74
+<img src="Figs/Jobs Found-1.png" style="display: block; margin: auto;" />
 
 -   We expect 200 jobs for each result, and removing the duplicate jobs in the order they were searched.
 -   Interestingly, searching 200 jobs in analytics returns only 113 unique jobs, some redundancy exists.
@@ -125,184 +79,69 @@ left_join(data.frame(search=searches),rollup,by="search")
 -   Interestingly, each additional search term returns a surprising amount of new jobs. 75 jobs are shown for machine learning that were not found for data scientist, a fairly similar field.
 -   Business Intelligence seems to be fairly lateral to other search terms, returning many unique jobs
 
-``` r
-#what words to avoid
-stops <- stopwords("en")
+<img src="Figs/Job title frequency-1.png" style="display: block; margin: auto;" />
 
-#process n-grams
-unigrams <- data %>%
-     unnest_tokens(token="words",output="unigrams",input=text) %>%
-     group_by(unigrams) %>%
-     filter(!unigrams %in% stops) %>%
-     count(unigrams,sort=TRUE)
+-   The job search is currently dominated by data scientists, which have become a catch all word. But it's encouraging to see data engineering & machine learning engineering to begin to take hold.
+-   Analytics is surprisingly absent, but is likely wrapped into titles like "Manager, Analytics" which is more heterogeneous. Let's take a closer look at where our Analytics jobs are.
 
-#visualize
-wordcloud(unigrams$unigrams,unigrams$n,max.words=100)
-```
+<img src="Figs/titles for analytics only-1.png" style="display: block; margin: auto;" />
 
-![](Figs/Process%20unigrams%20Data-1.png)
+-   Here we can see much more heterogeneity in the job titles used by Analytics Practioners vs Data Scientists.
 
--   Looking at a simple word frequency, we see out of the box our data is very messy
--   The boiler plate at the end of each job posting, encouraging people to apply, discussing company acolades and culture distort our analysis. Let's spend some time cleaning up 0-value words.
+<img src="Figs/frequent companies-1.png" style="display: block; margin: auto;" />
 
-``` r
-#look a bi-grams
-bigrams_totals <- data %>%
-     unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
-     separate(col=tokens,into=c("word1","word2"),sep=" ") %>%
-     filter(!word1 %in% stops, !word2 %in% stops) %>%
-     unite(tokens,word1,word2,sep=" ") %>%
-     count(tokens,sort=TRUE)
+-   This seems to resonate with what the Toronto Job environment is as a whole, Telecom, Banking and consultancies.
 
-head(bigrams_totals,20)
-```
+<img src="Figs/Empty Jobs-1.png" style="display: block; margin: auto;" />
 
-    ## # A tibble: 20 × 2
-    ##                   tokens     n
-    ##                    <chr> <int>
-    ## 1              apply now   699
-    ## 2               days ago   559
-    ## 3  business intelligence   442
-    ## 4       machine learning   435
-    ## 5        job description   414
-    ## 6             ago easily   409
-    ## 7           easily apply   409
-    ## 8     style display:none   382
-    ## 9           social media   334
-    ## 10        data scientist   330
-    ## 11               1 style   329
-    ## 12      talent community   313
-    ## 13          new password   300
-    ## 14             full time   270
-    ## 15             now start   270
-    ## 16          data analyst   261
-    ## 17        required field   253
-    ## 18       password forgot   251
-    ## 19       forgot password   250
-    ## 20            contact us   233
+-   We see that there are alot of 0 information jobs, postings with only a few words, let's postings with fewer than 300 words.
 
-``` r
-wordcloud(bigrams_totals$tokens,bigrams_totals$n,max.words=10)
-```
+Exploratory Data Analysis
+=========================
 
-![](Figs/Process%20bigrams-1.png)
+-   Let's examine what our unigrams look like without any text processing
 
-``` r
-#determine how frequent each word occurs across job postings. Don't skip stop words yet.
-unigrams_freq <- data %>%
-     unnest_tokens(token="words",output="tokens",input=text) %>%
-     select(urls,tokens) %>%
-     distinct() %>%
-     group_by(tokens) %>%
-     count(tokens,sort=TRUE) %>%
-     ungroup() %>%
-     mutate(frequency=n/NumJobs)
+<img src="Figs/most frequent words-1.png" style="display: block; margin: auto;" />
 
-tail(unigrams_freq,20)
-```
+-   Looking at at our most common words ignoring traditional stopwords, we see out of the box our data is very messy
+-   The boiler plate at the end of each job posting, encouraging people to apply, discussing company acolades and culture distort our analysis. Let's spend some time cleaning up *job specific words* and *html*
 
-    ## # A tibble: 20 × 3
-    ##                                                       tokens     n
-    ##                                                        <chr> <int>
-    ## 1                                                youtubefind     1
-    ## 2                                                    youwill     1
-    ## 3                                                     youyou     1
-    ## 4                                                         yp     1
-    ## 5                                                        yui     1
-    ## 6                                                      yukon     1
-    ## 7                                                     yummly     1
-    ## 8                                                       yuzu     1
-    ## 9                                                     z299.3     1
-    ## 10                                                      z795     1
-    ## 11                                  zdbrtvigjurnvorcmgdwo4ld     1
-    ## 12                                    zdirectoriesmapssearch     1
-    ## 13 zealandpakistanpanamaperuphilippinespolandportugalrussian     1
-    ## 14                                                  zerobug2     1
-    ## 15                                       ziffdavis.icims.com     1
-    ## 16                                                     zones     1
-    ## 17                                       zonesqualifications     1
-    ## 18                                                   zooming     1
-    ## 19                                                    zoomoo     1
-    ## 20                    zwehzuaeckqfwhfbvl5ljgjisgxycvxlu0paha     1
-    ## # ... with 1 more variables: frequency <dbl>
+<img src="Figs/Process unigrams Data-1.png" style="display: block; margin: auto;" />
 
-``` r
-#determine how frequent each bigram is across job postings. Don't skip stop words yet.
-bigrams_freq <- data %>%
-     unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
-     select(urls,tokens) %>%
-     distinct() %>%
-     group_by(tokens) %>%
-     count(tokens,sort=TRUE) %>%
-     ungroup() %>%
-     mutate(frequency=n/NumJobs)
+-   We are starting to look better. Let's take a look at our bigrams. <img src="Figs/Process bigrams-1.png" style="display: block; margin: auto;" />
+-   This is less fruitful. Likely some bi-grams have value that are less frequent. Words like **machine learning** or **project managment**
+-   Let's examine what proportion of jobs words appear in.
 
-head(bigrams_freq,20)
-```
+<img src="Figs/Unigram frequency-1.png" style="display: block; margin: auto;" />
 
-    ## # A tibble: 20 × 3
-    ##             tokens     n frequency
-    ##              <chr> <int>     <dbl>
-    ## 1           of the   442 0.6949686
-    ## 2             in a   377 0.5927673
-    ## 3           in the   367 0.5770440
-    ## 4           to the   362 0.5691824
-    ## 5          will be   351 0.5518868
-    ## 6       ability to   332 0.5220126
-    ## 7    experience in   308 0.4842767
-    ## 8         with the   307 0.4827044
-    ## 9  job description   276 0.4339623
-    ## 10         to work   275 0.4323899
-    ## 11          we are   267 0.4198113
-    ## 12        for this   264 0.4150943
-    ## 13       apply now   263 0.4135220
-    ## 14         for the   257 0.4040881
-    ## 15    knowledge of   253 0.3977987
-    ## 16          with a   250 0.3930818
-    ## 17            is a   248 0.3899371
-    ## 18         and the   245 0.3852201
-    ## 19         you are   242 0.3805031
-    ## 20         sign in   239 0.3757862
+-   Of our 25,000 words, 20,000 of them are only mentioned once. Some of this is having a reasonable 'small' dataset. Alot is due to the issues with parsing the variety of html pages from internal job websites.
+-   Let's use a 80%/2% rule of thumb on what to filter out.
 
-``` r
-skills <- c("sas","python","excel","powerpoint","sql",
-                          "r","hadoop","spark","java","scala","aws",
-                          "tableau","microstrategy","spss","c++")
+<img src="Figs/unnamed-chunk-1-1.png" style="display: block; margin: auto;" />
 
-data %>%
-     unnest_tokens(token="words",output="tokens",input=text) %>%
-     filter(tokens %in% skills) %>%
-     pairwise_count(tokens,urls,sort=TRUE)
-```
+    ## # A tibble: 5 × 3
+    ##                      tokens     n Proportion
+    ##                       <chr> <int>      <dbl>
+    ## 1      communication skills   190  0.3435805
+    ## 2          computer science   180  0.3254973
+    ## 3                       c c   159  0.2875226
+    ## 4                       p c   147  0.2658228
+    ## 5 b.scorecardresearch.com p   143  0.2585895
 
-    ## # A tibble: 182 × 3
-    ##         item1      item2     n
-    ##         <chr>      <chr> <dbl>
-    ## 1      python          r    85
-    ## 2           r     python    85
-    ## 3      python        sql    76
-    ## 4         sql     python    76
-    ## 5       excel powerpoint    68
-    ## 6  powerpoint      excel    68
-    ## 7           r        sql    66
-    ## 8         sql          r    66
-    ## 9       excel        sql    63
-    ## 10        sql      excel    63
-    ## # ... with 172 more rows
+-   Some of our bi-grams are very interesting. It's fruitful that our top two words are communication skills, then computer science. Let's look at the histogram of what we will be clustering on.
 
-``` r
-#pairwise correlation
-data %>%
-     unnest_tokens(token="words",output="tokens",input=text) %>%
-     filter(tokens %in% skills) %>%
-     pairwise_cor(tokens,urls,sort=TRUE) %>%
-     filter(correlation > .1) %>%
-     graph_from_data_frame() %>%
-     ggraph(layout = "fr") +
-     geom_edge_link(aes(edge_alpha = correlation), show.legend = FALSE) +
-     geom_node_point(color = "lightblue", size = 5) +
-     geom_node_text(aes(label = name), repel = TRUE) +
-     theme_void()
-```
+<img src="Figs/unnamed-chunk-3-1.png" style="display: block; margin: auto;" />
 
-![](Figs/pairwise%20correlation-1.png)
+<img src="Figs/skills mentioned-1.png" style="display: block; margin: auto;" /> - This seems to suggest excel, R and SQL are in high demand. Let's examine how inter related these concepts are. - But how often do these skills get mentioned in postings? <img src="Figs/frequency of skills-1.png" style="display: block; margin: auto;" /> - For the skills we have selected, analytics and data scientists have long tails. These are likely associated with the variety of big data tools we discuss: hive, scala, spark etc.
+
+<img src="Figs/pairwise skills-1.png" style="display: block; margin: auto;" />
+
+-   It seems that R and Python are mentioned together, likely with companies agnostic towards its use. The mention of hadoop and park alongside python signify that python is the big data language of choice. An obvious result for those familiar with the sparklyR package.
+
+-   SAS has a large pressence, mentioned alongside R and SQL.
+
+-   Excel and Powerpoint are close companions, with powerpoint seeming not to have in common with much else.
+
+<img src="Figs/pairwise correlation-1.png" style="display: block; margin: auto;" /> - The network analysis shown shows a few unique clusters. Excel and powerpoint don't seem correlated with the rest of our tech stack, despite the frequent mentions of excel (which presumably are the noun and not the verb) - 3 clusters seem present: - Traditional Analytics - R, SAS, and a smal relationship to - Big Data - Python leveraging Hadoop, AWS, Scala and spark - BI/Data Viz - Tableau, SQL and qlik - Our Trifecta of R, SQL, and excel don't seem as complimentary skills anymore
+
+-   Let's see if our clustering supports this

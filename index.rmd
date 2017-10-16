@@ -1,21 +1,20 @@
 ---
 title: "The Toronto Analytics Job Landscape"
 author: "Summerhill"
-date: "`r Sys.Date()`"
+date: '`r Sys.Date()`'
 output:
   md_document:
     variant: markdown_github
-  html_document: default
-  pdf_document: default
 ---
 
 ```{r global_options, include=FALSE}
-knitr::opts_chunk$set(fig.width=10, fig.height=10, fig.path='Figs/',
-                      warning=FALSE,message=FALSE,error=FALSE,include=TRUE,echo=TRUE)
+knitr::opts_chunk$set(fig.width=10, fig.height=10, fig.path='Figs/',fig.align="center",
+                      warning=FALSE,message=FALSE,error=FALSE,include=TRUE,echo=FALSE,
+                      knitr.table.format="html")
 
 set.seed(42)
 
-# a note on options: 
+# Mel - A note on code chunk options:
 # include=TRUE means that output of the code is shown in the document (intended for graphics).
 # echo=TRUE means the code is shown in the document (intended for code that might be interesting for a reader).
 # message and warning are for the text for loading libraries or if a function fails
@@ -29,6 +28,11 @@ set.seed(42)
 
 ##*THIS PROJECT IS STILL UNDER CONSTRUCTION*
 The intention will be to mask the code as the project approaches completion.
+
+
+## Authors
+- To shower praise for ingenuity on the project, contact [Melody Liu](https://www.linkedin.com/in/meifei-melody-liu/)
+- For criticism of things we couldn't be achieved in 4 weeks contact [Gage Sonntag](https://www.linkedin.com/in/gage-sonntag/)
 
 ##Executive Summary
 - This project was produced for the Text Analytics Workshop for the Winter 2018 Masters of Management Analytics Cohort at Queen's University
@@ -56,11 +60,12 @@ library(ggridges)
 
 ##Gathering Data
 - Beautiful Soup & Selenium were used in Python to access [Indeed](https://www.indeed.ca/jobs?q=analytics&l=Toronto&start=10 "Indeed:Analytics Jobs in Toronto") and scrape unsponsored job titles, companies, and postings
-- `later number` unique jobs were scraped from the search terms: `analytics`,`etc`....
+- 1800 jobs were scraped from 9 search terms we believed captured the jobs most MMA students are pursuing.
 - Jobs were passed from Python to R using [Feather](https://blog.rstudio.com/2016/03/29/feather/ "Feather: A Fast On-Disk Format for Data Frames for R and Python, powered by Apache Arrow")
 
 ```{r Import Data,echo=TRUE}
 rm(list=ls())
+
 #list our data files
 searches <- c("analytics",
                  "data analyst",
@@ -84,48 +89,40 @@ rm(datalist)
 names(data) <- c("search","company","text","titles","urls")
 data <- data %>% select(company,titles,text,search,urls)
 
-#check if we have redundant jobs
-sum(duplicated(data[,2:4]))
-
 #examine the uniqueness of our data
 NumJobs <- n_distinct(data$urls)
-
-?n_distinct
 
 #reduce to distinct jobs and clean up search column
 data <- data[!duplicated(data$urls),]
 data$search <- plyr::mapvalues(data$search,
                                from=unique(data$search),
                                to=searches)
-
-kable(head(data))
 ```
-- Our data returned `NumJobs` unique jobs within our search.
+- Our data returned `r NumJobs` unique jobs within our search.
 - It's clear a considerable amount of cleaning is in order 
 
 ```{r preprocessing}
 RemovePattern <- function(vector,pattern){gsub(pattern=pattern,replacement=" ",vector)}
+
 data <- dmap(data,RemovePattern,"\n")
 data <- dmap(data,RemovePattern,"\\(")   
 data <- dmap(data,RemovePattern,"\\)")
 data <- dmap(data,RemovePattern,"\\{[a-zA-Z0-9]\\}")
-kable(data[80,])
-
-test <- unique(data$company)
-tail(test,100)
+data$text <- RemovePattern(data$text,"[[:digit:]]")
 ```
 
 ```{r Jobs Found}
 #investigate redundant jobs. Should return 200/each if they are all unique.
 
-rollup <- data %>%
+data %>%
      group_by(search) %>%
-     summarize(NumberUniquePostings=n())
-
-str(rollup)
-
-#sort by search order
-kable(left_join(data.frame(search=searches),rollup,by="search"))
+     summarize(NumberUniquePostings=n()) %>%
+     ggplot(aes(x=factor(search,searches),y=NumberUniquePostings))+geom_col() +
+     theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
+     labs(y="Number of Unseen Postings",
+          title="Unique Postings by Sequential Search",
+          x="Job Title") +
+     theme_minimal()
 ```
 
 - We expect 200 jobs for each result, and removing the duplicate jobs in the order they were searched.
@@ -134,17 +131,93 @@ kable(left_join(data.frame(search=searches),rollup,by="search"))
 - Interestingly, each additional search term returns a surprising amount of new jobs. 75 jobs are shown for machine learning that were not found for data scientist, a fairly similar field.
 - Business Intelligence seems to be fairly lateral to other search terms, returning many unique jobs
 
-```{r Remove empty jobs}
+```{r Job title frequency}
+titles_to_use <- data %>%
+     count(titles,sort=TRUE) %>%
+     head(7) %>%
+     mutate(titles=factor(titles,titles))
+
+titles_plot <- data %>% 
+     filter(titles %in% titles_to_use$titles) %>%
+     count(titles,search,sort=TRUE) %>%
+     mutate(frequency = n/NumJobs) %>%
+     ungroup() %>%
+     mutate(titles=factor(titles,titles_to_use$titles)) %>%
+     mutate(search=factor(search,searches))
+
+titles_order <- data %>% 
+     count(titles,sort=TRUE) %>%
+     filter(titles %in% titles_plot$titles)
+
+queens_colors <- scale_fill_manual(values=c("#11335d","#9d1939","#eebd31"))
+
+titles_plot %>%
+     ggplot(aes(x=titles,y=frequency,fill=search))+geom_col() + 
+     theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
+     scale_y_continuous(name="Frequency in Dataset",labels= scales::percent) + 
+     labs(title="Most Frequent Job Titles",x="Job Title") + coord_flip() + 
+     theme_minimal()+scale_fill_brewer(palette="Reds",direction=-1)
+```
+
+
+- The job search is currently dominated by data scientists, which have become a catch all word. But it's encouraging to see data engineering & machine learning engineering to begin to take hold.
+- Analytics is surprisingly absent, but is likely wrapped into titles like "Manager, Analytics" which is more heterogeneous. Let's take a closer look at where our Analytics jobs are.
+
+```{r titles for analytics only}
+analytics_jobs <- data %>% filter(search=="analytics") %>% n_distinct()
+
+analytics_titles_plot <- data %>% 
+     filter(search=="analytics") %>%
+     count(titles,sort=TRUE) %>%
+     head(7) %>%
+     mutate(frequency = n/analytics_jobs)
+
+analytics_titles_plot %>%
+     ggplot(aes(x=reorder(titles,-frequency),y=frequency,fill="red"))+geom_col() + 
+     theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
+     scale_y_continuous(name="Frequency in Analytics Search",labels= scales::percent) +
+     labs(title="Most Frequent Hiring Companies for Analytics",x="Company") + 
+     coord_flip() +
+     theme_minimal() + 
+     theme(legend.position="none") + queens_colors
+```
+
+- Here we can see much more heterogeneity in the job titles used by Analytics Practioners vs Data Scientists.
+
+```{r frequent companies}
+company_plot <- data %>% 
+     count(company,sort=TRUE) %>%
+     mutate(frequency = n/NumJobs) %>%  
+     mutate(company = factor(company,company)) %>%
+     top_n(10)
+
+company_plot %>%
+     ggplot(aes(x=company,y=frequency))+geom_col() +
+     theme(axis.text.x = element_text(angle = 30, hjust = 1),
+           axis.text=element_text(size=12),
+           axis.title=element_text(size=12)) + 
+     scale_y_continuous(name="Frequency in Dataset",labels= scales::percent) + 
+     labs(title="Most Frequent Hiring Companies",x="Company")
+
+```
+
+
+- This seems to resonate with what the Toronto Job environment is as a whole, Telecom, Banking and consultancies.
+
+```{r Empty Jobs}
 #how long are our jobs
 data %>%
      unnest_tokens(token="words",output="unigrams",input=text) %>%
      group_by(urls) %>%
      count(search,urls,sort=TRUE) %>%
      filter(n<3000) %>%
-     ggplot(aes(x=n,y=search))+geom_density_ridges() %>%
-     labs(title="Stacked Histograms of Word Counts less than 3000")
+     ggplot(aes(x=n,y=search))+geom_density_ridges()
 ```
-- We see that there are alot of 0 information jobs, postings with only a few words, let's look at what some of those are.
+
+- We see that there are alot of 0 information jobs, postings with only a few words, let's postings with fewer than 300 words.
+
+# Exploratory Data Analysis
+- Let's examine what our unigrams look like without any text processing
 
 ```{r remove outliers}
 MinWords <- 300
@@ -155,47 +228,34 @@ empty_urls <- data %>%
      count(urls,sort=TRUE) %>%
      filter(n < MinWords)
 
-data %>% 
-     filter(urls %in% empty_urls$urls) %>%
-     head()
-
 data <- data %>% 
      filter(!urls %in% empty_urls$urls)
+
+NumJobs <- n_distinct(data$urls)
      
 ```
 
-- We see here a variety of failed scrapings, or 0 info postings
+```{r most frequent words}
 
-
-```{r long postings}
-long_postings <- data %>%
-     unnest_tokens(token="words",output="unigrams",input=text) %>%
-     group_by(urls) %>%
-     count(urls,sort=TRUE) %>%
-     filter(n >3000)
-
-kable(data %>%
-          filter(urls %in% long_postings$urls) %>%
-          head(2))
-```
-
-```{r}
 unigrams <- data %>%
      unnest_tokens(token="words",output="unigrams",input=text) %>%
+     filter(!unigrams %in% stopwords("en")) %>%
      group_by(unigrams) %>%
-     count(unigrams,sort=TRUE)
+     count(unigrams,sort=TRUE) %>%
+     top_n(50)
 
-wordcloud(unigrams$unigrams,unigrams$n,max.words=100)
+wordcloud(unigrams$unigrams,unigrams$n)
 ```
 
 
-- Looking at a simple word frequency, we see out of the box our data is very messy
-- The boiler plate at the end of each job posting, encouraging people to apply, discussing company acolades and culture distort our analysis. Let's spend some time cleaning up *common stopwords*, *job specific words* and *html*
+- Looking at at our most common words ignoring traditional stopwords, we see out of the box our data is very messy
+- The boiler plate at the end of each job posting, encouraging people to apply, discussing company acolades and culture distort our analysis. Let's spend some time cleaning up *job specific words* and *html*
 
 ```{r Process unigrams Data}
 #what words to avoid
 stop <- read.csv("stopwords.csv",stringsAsFactors = FALSE)
-stop <- rbind(stop,data.frame(words=stopwords("en")))
+stop <- rbind(stop,
+              data.frame(words=stopwords("en")))
 
 
 #process n-grams
@@ -203,10 +263,11 @@ unigrams <- data %>%
      unnest_tokens(token="words",output="unigrams",input=text) %>%
      group_by(unigrams) %>%
      filter(!unigrams %in% stop$words) %>%
-     count(unigrams,sort=TRUE)
+     count(unigrams,sort=TRUE) %>%
+     top_n(50)
 
 #visualize
-wordcloud(unigrams$unigrams,unigrams$n,max.words=100)
+wordcloud(unigrams$unigrams,unigrams$n)
 ```
 
 - We are starting to look better. Let's take a look at our bigrams.
@@ -214,16 +275,18 @@ wordcloud(unigrams$unigrams,unigrams$n,max.words=100)
 #look a bi-grams
 bigrams_totals <- data %>%
      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%
+     filter(!tokens %in% searches) %>%
      separate(col=tokens,into=c("word1","word2"),sep=" ") %>%
      filter(!word1 %in% stop$words, !word2 %in% stop$words) %>%
      unite(tokens,word1,word2,sep=" ") %>%
-     count(tokens,sort=TRUE)
+     filter(!tokens %in% searches) %>%
+     count(tokens,sort=TRUE) %>%
+     top_n(20)
 
-kable(head(bigrams_totals,20))
-
-wordcloud(bigrams_totals$tokens,bigrams_totals$n,max.words=10)
+wordcloud(bigrams_totals$tokens,bigrams_totals$n)
 ```
-
+- This is less fruitful. Likely some bi-grams have value that are less frequent. Words like **machine learning** or **project managment**
+- Let's examine what proportion of jobs words appear in.
 
 
 ```{r Unigram frequency}
@@ -237,10 +300,23 @@ unigrams_freq <- data %>%
      group_by(tokens) %>%
      count(tokens,sort=TRUE) %>%
      ungroup() %>%
-     mutate(frequency=n/NumJobs)
+     mutate(Proportion=n/NumJobs)
 
-head(unigrams_freq,20)
+unigrams_freq %>%
+     ggplot(aes(x=n))+geom_histogram()
 ```
+
+
+- Of our 25,000 words, 20,000 of them are only mentioned once.  Some of this is having a reasonable 'small' dataset. Alot is due to the issues with parsing the variety of html pages from internal job websites.
+- Let's use a 80%/2% rule of thumb on what to filter out.
+
+
+```{r}
+unigrams_freq %>%
+     filter(Proportion>0.02 & Proportion<0.80) %>%
+     ggplot(aes(x=n))+geom_histogram()
+```
+
 
 
 ```{r}
@@ -256,159 +332,110 @@ bigrams_freq <- data %>%
      group_by(tokens) %>%
      count(tokens,sort=TRUE) %>%
      ungroup() %>%
-     mutate(frequency=n/NumJobs)
+     mutate(Proportion=n/NumJobs)
 
-head(bigrams_freq,20)
+bigrams_freq %>% head(5)
+```
+- Some of our bi-grams are very interesting. It's fruitful that our top two words are communication skills, then computer science. Let's look at the histogram of what we will be clustering on.
 
+```{r}
+bigrams_freq %>%
+     filter(Proportion>0.02 & Proportion<0.80) %>%
+     ggplot(aes(x=n))+geom_histogram()
 ```
 
 
+```{r skills mentioned}
 
-```{r pairwise count}
-
-skills <- c("sas","python","sql","r","spss",
-            "hadoop","spark","java","scala","aws","c++",
-            "excel","powerpoint","mapreduce",
-          "qlik","tableau","microstrategy","azure")
+skills <- read_csv("skills.csv")
+names(skills) <- c("tokens","domain")
 
 data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
-     filter(tokens %in% skills) %>%
-     pairwise_count(tokens,urls,sort=TRUE)
+     filter(tokens %in% skills$tokens) %>%
+     group_by(tokens) %>%
+     count(tokens,sort=TRUE) %>%
+     left_join(skills) %>%
+     mutate(tokens=factor(tokens,tokens)) %>%
+     ggplot(aes(x=tokens,y=n,fill=domain)) +
+     geom_col() + 
+     labs(title="Skills Present in Dataset",x="Skill",y="Number of Occurences in Dataset")+
+     theme_minimal()+
+     theme(axis.text.x = element_text(angle = 30, hjust = 1),
+           plot.title = element_text(hjust = 0.5)) + 
+     queens_colors
+     
+
+     
+```
+- This seems to suggest excel, R and SQL are in high demand. Let's examine how inter related these concepts are.
+- But how often do these skills get mentioned in postings?
+```{r frequency of skills}
 
 data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
-     filter(tokens %in% skills) %>%
-     ggplot(aes(x=tokens)) +
-     geom_bar()
+     filter(tokens %in% skills$tokens) %>%
+     select(search,tokens,urls) %>%
+     distinct() %>%
+     group_by(search,urls) %>%
+     count(urls,sort=TRUE) %>%
+     ggplot(aes(x=n,y=search,fill=search))+geom_density_ridges()+
+     labs(title="Mentions of Skills in Job Postings",x="Number of Skills",y="Search Term")+
+     scale_x_continuous(limits=c(0,8)) +
+     theme_minimal()+
+     theme(axis.text.x = element_text(angle = 30, hjust = 1),
+           plot.title = element_text(hjust = 0.5)) +
+     scale_fill_cyclical(values=c("#11335d","#9d1939","#eebd31"))
+```
+- For the skills we have selected, analytics and data scientists have long tails. These are likely associated with the variety of big data tools we discuss: hive, scala, spark etc.
+
+
+```{r pairwise skills}
+data %>%
+     unnest_tokens(token="words",output="tokens",input=text) %>%
+     filter(tokens %in% skills$tokens) %>%
+     pairwise_count(tokens,urls,sort=TRUE) %>%
+     filter(row_number() %% 2 == 1) %>%
+     unite(Pair,item1,item2,sep=" ") %>%
+     head(10) %>%
+     mutate(Pair=factor(Pair,Pair)) %>%
+     ggplot(aes(x=Pair,y=n)) +
+     geom_col() + 
+     labs(title="Pairwise Skills in Dataset",x="Skill",y="Number of Occurences in Dataset")+
+     theme_minimal()+
+     theme(axis.text.x = element_text(angle = 30, hjust = 1),
+           plot.title = element_text(hjust = 0.5))
+     
 ```
 
+- It seems that R and Python are mentioned together, likely with companies agnostic towards its use.  The mention of hadoop and park alongside python signify that python is the big data language of choice. An obvious result for those familiar with the sparklyR package.
 
+- SAS has a large pressence, mentioned alongside R and SQL.
 
+- Excel and Powerpoint are close companions, with powerpoint seeming not to have in common with much else.
 
 
 ```{r pairwise correlation}
 #pairwise correlation
 data %>%
      unnest_tokens(token="words",output="tokens",input=text) %>%
-     filter(tokens %in% skills) %>%
+     filter(tokens %in% skills$tokens) %>%
      pairwise_cor(tokens,urls,sort=TRUE) %>%
-     filter(correlation > .2) %>%
+     filter(correlation > .18) %>%
      graph_from_data_frame() %>%
      ggraph(layout = "fr") +
-     geom_edge_link(aes(edge_alpha = correlation), show.legend = FALSE) +
-     geom_node_point(color = "lightblue", size = 5) +
+     geom_edge_link(aes(#edge_width=correlation,
+                         edge_alpha = correlation),show.legend = FALSE) +
+     geom_node_point(color = "#eebd31", size = 8) +
      geom_node_text(aes(label = name), repel = TRUE) +
      theme_void()
 
 ```
+- The network analysis shown shows a few unique clusters. Excel and powerpoint don't seem correlated with the rest of our tech stack, despite the frequent mentions of excel (which presumably are the noun and not the verb)
+- 3 clusters seem present:
+     - Traditional Analytics - R, SAS, and a smal relationship to
+     - Big Data - Python leveraging Hadoop, AWS, Scala and spark
+     - BI/Data Viz - Tableau, SQL and qlik
+- Our Trifecta of R, SQL, and excel don't seem as complimentary skills anymore
 
-```{r clustering}
-
-#creating tokens - once we come up with list of stop words, should use anti_join here to remove them
-
-data_token <- data %>%
-     unnest_tokens(word,text)
-
-#creating unique document identifiers for each job posting 
-data_token$ID <- paste(data_token$company,data_token$titles,sep="_")
-
-#removing useless columns - 
-data_token <- data_token[,-(1:4)]
-head(data_token)
-
-#frequency of words by document
-
-data_count <- data_token %>%
-     count(ID,word,sort=TRUE)
-
-#creating table of total count of words in each document 
-data_count2 <- data_count %>%
-     group_by(ID) %>%
-     summarise(total = sum(n))
-
-#joining the total count information with primary dataset
-data_count <- right_join(data_count,data_count2)
-
-#creating the correlation column so we can filter out words <1% or >80% of docs 
-data_count <- data_count %>%
-     mutate(correlation = n/total) %>%
-     arrange(desc(correlation))
-
-#Note for Gage: I'm noticing something odd for some of these postings. Look at the head of the data frame. The Brain Hunter Systems job posting only has 2 words but when I go to the actual posting itself, it clearly has way more than that 
-
-head(data_count)
-
-
-#Correlation filters
-minCor = 0.01
-maxCor = 0.80
-
-#filter out words <1% or >80% of docs 
-data_count <- data_count %>%
-     filter(correlation > minCor & correlation < maxCor)
-
-#casting tidy text data into DTM
-data_dtm <- data_count %>%
-     cast_dtm(ID,word,n)
-
-#creating TDM
-data_tdm <- t(data_dtm)
-
-#reducing sparsity of TDM before clustering
-dim(data_tdm)
-data_clean <- removeSparseTerms(data_tdm,sparse = 0.80)
-data_m <- as.matrix(data_clean)
-data_df <- as.data.frame(data_m)
-
-#looking at most popular words, min freq of 20
-findFreqTerms(data_tdm,lowfreq=20)
-
-#accumulator of clustering results 
-clust_results <- data.frame()
-
-#run kmeans for all clusters up to 15
-set.seed(50)
-for(i in 1:10) {
-     k_clust <- kmeans(data_m, centers=i, iter.max =100)
-     #Combine cluster number and cluster together, write to df
-     clust_results <- rbind(clust_results,cbind(i,k_clust$tot.withinss))
-}
-names(clust_results) <- c("cluster","results")
-
-#scree elbow plot
-ggplot(clust_results,aes(x=cluster,y=results,group=1))+
-geom_jitter()+geom_line()+scale_x_continuous(name='# of clusters',limits = c(1, 10))
-
-## above plot shows that at about 3 clusters, any additional clusters would lose significance
-
-#need to create principal components, regular kmeans will kick out an error because it uses princomp function
-pc <- prcomp(data_m)
-plot(pc,xlab="Principal Components")
-summary(pc)
-comp <- data.frame(pc$x[,1:12])
-plot(comp)
-
-#Let's look at 3 clusters
-kmeans3 <- kmeans(comp,centers=3)
-
-#Plot clusters
-library(cluster)
-clusplot(comp, kmeans3$cluster, color=TRUE, shade=TRUE,
-         labels=2, lines=0, main="K-means cluster plot")
-
-###hierarchical clustering
-
-#calculate distance
-data_dist <- dist(data_df,method="euclidean")
-
-#creating and plotting hierarchical cluster
-hc <- hclust(data_dist)
-plot(hc)
-rect.hclust(hc,k=8,border="red")
-```
-
-
-
-
-
+- Let's see if our clustering supports this
