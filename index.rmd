@@ -67,7 +67,7 @@ library(clValid)
 - 1800 jobs were scraped from 9 search terms we believed captured the jobs most MMA students are pursuing.
 - Jobs were passed from Python to R using [Feather](https://blog.rstudio.com/2016/03/29/feather/ "Feather: A Fast On-Disk Format for Data Frames for R and Python, powered by Apache Arrow")
 
-```{r Import Data,echo=TRUE}
+```{r Import Data}
 rm(list=ls())
 
 #list our data files
@@ -283,7 +283,7 @@ data %>%
 - This is less fruitful. Likely some bi-grams have value that are less frequent. Words like **machine learning** or **project managment**. They are likely mentioned once in a few job postings, but have a low count.
 - We could cluster on tf-idf, but instead, let's first look at how often phrases are mentioned distinctly in jobs. This weights phrases mentioned in lots of jobs, not phrases mentioned many times.
 
-```{r Process bigrams}
+```{r Process distinct bigrams}
 #look a bi-grams
 data %>%
      unnest_tokens(token="ngrams",n=2,output="tokens",input=text) %>%

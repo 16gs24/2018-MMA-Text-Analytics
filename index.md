@@ -1,4 +1,4 @@
--   This document was rendered last on 2017-10-16
+-   This document was rendered last on 2017-10-17
 
 *THIS PROJECT IS STILL UNDER CONSTRUCTION*
 ------------------------------------------
@@ -9,7 +9,7 @@ Authors
 -------
 
 -   To shower praise for ingenuity on the project, contact [Melody Liu](https://www.linkedin.com/in/meifei-melody-liu/)
--   For criticism of things we couldn't be achieved in 4 weeks contact [Gage Sonntag](https://www.linkedin.com/in/gage-sonntag/)
+-   For criticism of avenues we couldn't investigate in 4 weeks contact [Gage Sonntag](https://www.linkedin.com/in/gage-sonntag/)
 
 Executive Summary
 -----------------
@@ -31,42 +31,6 @@ Gathering Data
 -   Beautiful Soup & Selenium were used in Python to access [Indeed](https://www.indeed.ca/jobs?q=analytics&l=Toronto&start=10 "Indeed:Analytics Jobs in Toronto") and scrape unsponsored job titles, companies, and postings
 -   1800 jobs were scraped from 9 search terms we believed captured the jobs most MMA students are pursuing.
 -   Jobs were passed from Python to R using [Feather](https://blog.rstudio.com/2016/03/29/feather/ "Feather: A Fast On-Disk Format for Data Frames for R and Python, powered by Apache Arrow")
-
-``` r
-rm(list=ls())
-
-#list our data files
-searches <- c("analytics",
-                 "data analyst",
-                 "data scientist",
-                 "analytics strategy",
-                 "data insights",
-                 "marketing analytics",
-                 "analytics reporting",
-                 "machine learning",
-                 "business intelligence")
-
-files <- paste("data/feather/",searches,".feather",sep="")
-
-#read and collapse to data frame
-datalist <- lapply(as.list(files),function(x){read_feather(x)})
-test <- datalist[[1]]
-data <- bind_rows(datalist,.id="search")
-rm(datalist)
-
-#fix quotations in column names
-names(data) <- c("search","company","text","titles","urls")
-data <- data %>% select(company,titles,text,search,urls)
-
-#examine the uniqueness of our data
-NumJobs <- n_distinct(data$urls)
-
-#reduce to distinct jobs and clean up search column
-data <- data[!duplicated(data$urls),]
-data$search <- plyr::mapvalues(data$search,
-                               from=unique(data$search),
-                               to=searches)
-```
 
 -   Our data returned 636 unique jobs within our search.
 -   It's clear a considerable amount of cleaning is in order
@@ -90,58 +54,48 @@ data$search <- plyr::mapvalues(data$search,
 
 <img src="Figs/frequent companies-1.png" style="display: block; margin: auto;" />
 
--   This seems to resonate with what the Toronto Job environment is as a whole, Telecom, Banking and consultancies.
+-   This seems to resonate with what the Toronto Job environment is as a whole: Telecom, Banking and consultancies.
 
-<img src="Figs/Empty Jobs-1.png" style="display: block; margin: auto;" />
-
--   We see that there are alot of 0 information jobs, postings with only a few words, let's postings with fewer than 300 words.
-
-Exploratory Data Analysis
+A Word Frequency Approach
 =========================
 
--   Let's examine what our unigrams look like without any text processing
-
-<img src="Figs/most frequent words-1.png" style="display: block; margin: auto;" />
-
--   Looking at at our most common words ignoring traditional stopwords, we see out of the box our data is very messy
--   The boiler plate at the end of each job posting, encouraging people to apply, discussing company acolades and culture distort our analysis. Let's spend some time cleaning up *job specific words* and *html*
+-   The boiler plate at the end of each job posting, encouraging people to apply, discussing company acolades and culture distort our analysis. Let's spend some time cleaning up *job specific words* and *html related language*
 
 <img src="Figs/Process unigrams Data-1.png" style="display: block; margin: auto;" />
 
 -   We are starting to look better. Let's take a look at our bigrams. <img src="Figs/Process bigrams-1.png" style="display: block; margin: auto;" />
--   This is less fruitful. Likely some bi-grams have value that are less frequent. Words like **machine learning** or **project managment**
--   Let's examine what proportion of jobs words appear in.
+-   This is less fruitful. Likely some bi-grams have value that are less frequent. Words like **machine learning** or **project managment**. They are likely mentioned once in a few job postings, but have a low count.
+-   We could cluster on tf-idf, but instead, let's first look at how often phrases are mentioned distinctly in jobs. This weights phrases mentioned in lots of jobs, not phrases mentioned many times.
 
-<img src="Figs/Unigram frequency-1.png" style="display: block; margin: auto;" />
+<img src="Figs/Process distinct bigrams-1.png" style="display: block; margin: auto;" /> - This begins to get a bit more accurate of a assessment of what employers mention. Some of these are representative of the core requirements in analytics & DS: the fine line between communication and computer science, decision making & project management.
 
--   Of our 25,000 words, 20,000 of them are only mentioned once. Some of this is having a reasonable 'small' dataset. Alot is due to the issues with parsing the variety of html pages from internal job websites.
--   Let's use a 80%/2% rule of thumb on what to filter out.
+-   Typically when you see projects like this done, people look for some analytics or Data Science skills, and count the occurences. We want to go beyond that, but lets examine the landscape for analytical skills in Toronto.
 
-<img src="Figs/unnamed-chunk-1-1.png" style="display: block; margin: auto;" />
+A Skills Based Approach
+=======================
 
-    ## # A tibble: 5 × 3
-    ##                      tokens     n Proportion
-    ##                       <chr> <int>      <dbl>
-    ## 1      communication skills   190  0.3435805
-    ## 2          computer science   180  0.3254973
-    ## 3                       c c   159  0.2875226
-    ## 4                       p c   147  0.2658228
-    ## 5 b.scorecardresearch.com p   143  0.2585895
+<img src="Figs/skills mentioned-1.png" style="display: block; margin: auto;" /> - This seems to suggest excel, R and SQL are in high demand. Let's examine how inter related these concepts are. - Are the same jobs looking for R excel and SQL? - How many of these skills are required for different jobs?
 
--   Some of our bi-grams are very interesting. It's fruitful that our top two words are communication skills, then computer science. Let's look at the histogram of what we will be clustering on.
+<img src="Figs/frequency of skills-1.png" style="display: block; margin: auto;" /> - For the skills we have selected, analytics and data scientists have long tails. These are likely associated with the similarity between the big data tools we selected: hive, scala, spark etc. - Let's see how theses jobs get mentioned together.
 
-<img src="Figs/unnamed-chunk-3-1.png" style="display: block; margin: auto;" />
-
-<img src="Figs/skills mentioned-1.png" style="display: block; margin: auto;" /> - This seems to suggest excel, R and SQL are in high demand. Let's examine how inter related these concepts are. - But how often do these skills get mentioned in postings? <img src="Figs/frequency of skills-1.png" style="display: block; margin: auto;" /> - For the skills we have selected, analytics and data scientists have long tails. These are likely associated with the variety of big data tools we discuss: hive, scala, spark etc.
-
-<img src="Figs/pairwise skills-1.png" style="display: block; margin: auto;" />
-
--   It seems that R and Python are mentioned together, likely with companies agnostic towards its use. The mention of hadoop and park alongside python signify that python is the big data language of choice. An obvious result for those familiar with the sparklyR package.
-
--   SAS has a large pressence, mentioned alongside R and SQL.
-
--   Excel and Powerpoint are close companions, with powerpoint seeming not to have in common with much else.
+A Network Diagram of Skills
+===========================
 
 <img src="Figs/pairwise correlation-1.png" style="display: block; margin: auto;" /> - The network analysis shown shows a few unique clusters. Excel and powerpoint don't seem correlated with the rest of our tech stack, despite the frequent mentions of excel (which presumably are the noun and not the verb) - 3 clusters seem present: - Traditional Analytics - R, SAS, and a smal relationship to - Big Data - Python leveraging Hadoop, AWS, Scala and spark - BI/Data Viz - Tableau, SQL and qlik - Our Trifecta of R, SQL, and excel don't seem as complimentary skills anymore
 
--   Let's see if our clustering supports this
+-   Let's look at clustering our data set, to see if these groups are also represented
+
+Clustering
+==========
+
+-   An initial pass using hierarchical clustering revealed a number of outlier jobs, which were removed from the data set. The work will not be shown here, for brevity's sake. After removing these, let's look at how K-means clustering performs.
+
+<img src="Figs/unnamed-chunk-1-1.png" style="display: block; margin: auto;" /> - Plotting the within cluster sum of squares vs number of clusters produces a scree plot. Here, good clustering could be judged by the slope of the line decreasing rapidly after the ideal clustering was run. here this is not the case, with a shallow change in slope. - Evaluating instead by Dunn's Metric, which judgues clusters by the means of clusters, the distance between clusters and the within cluster variance. Here, we find the ideal cluster size to be 7. Let's dive a litle further into our clustering results.
+
+<img src="Figs/7 cluster performance-1.png" style="display: block; margin: auto;" />
+
+-   While it seemed at first glance there is some structure measured from the clustering, cluster 2 may represent some of the less technical roles in data analysis and BI, and cluster 1 has a notable amount of DS & ML jobs, the bulk of the data is sucked up in Cluster 5, and the rest are selected as outliers.
+
+-   In reality, these 7 clusters are really just 3.
+
+-   K-means is sensitive to multi-dimensional outliers, which are hard to identify. With more work identifiying them and filtering them out, we could achieve more resolution between our clusters.
