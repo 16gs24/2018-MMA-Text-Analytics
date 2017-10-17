@@ -329,7 +329,7 @@ unigram_cluster <- data %>%
      filter(tokens %in% unigram_clean$tokens) %>% 
      count(ID,tokens,sort=TRUE) %>%
      ungroup() %>%
-     spread(tokens,n,fill='0') 
+     spread(tokens,n,fill=0) 
 
 #filtering out stopwords and infrequent/frequent words from bigrams
 bigram_clean <- data %>%
@@ -415,8 +415,36 @@ kmeans10_plot <- clusplot(comp, kmeans10$cluster, color=TRUE, shade=FALSE,
          labels=2, lines=0, main="K-means cluster plot")
 ```
 
-```{r clustering - hierarchical}
+Common outliers for these jobs include job #58, #184, #331, #111, #78 and maybe #73. Urls for these jobs: 
 
+#58: CNR Data Scientist: http://jobs.cn.ca/jobs/8564BR/Canada-Qu%C3%A9bec-Montreal--Data-Scientist?codes=1-INDEED#.WeVfnGhSxPY
+
+Note: not quite sure why this role is an outlier. This was also an outlier in the dendrogram
+
+#184: Johnson & Johnson Logistics Strategy Analyst: https://jobs.jnj.com/jobs/1551170927/Logistics-Strategy-Analyst-Consumer-Business?lang=en-us&src=JB-10281
+
+Note: this role seems to be very broad. Not only would you have to deal with supply chain responsibilities but also a bit of reporting, financial analysis, project management, business process improvement, etc. Also not a lot of typical "analytics" qualifications listed other than Tableau. This was also an outlier in the dendrogram
+
+#381: Council of Ontario Universities Data Analyst: https://charityvillage.com/jobs/search-results/job-detail.aspx?id=371533&l=2
+
+Note: Not quite sure why this is an outlier either. Maybe because of all the talk about policy? Though in the dendrogram, this was not an outlier.
+
+#111: Deloitte Data Scientist: https://jobs2.deloitte.com/us/en/job/DELOA004X154608/Data-Scientist?src=JB-16801
+
+Note: Interesting that this role popped up as an outlier here and in the dendrogram considering its just a Data Scientist role. Just a quickly comparing this with the KPMG and PwC data scientist roles, this role seems like it has a lot more technical requirements than the others. The key difference that jumped out at me was that this one indicated more project management responsibilities than the other one. ie. "acting as the Scrum Master through project efforts" If we have more time, would be interesting to look into this a little more. 
+
+#437:Lakeside Controls BI Analyst: https://www.indeed.ca/viewjob?jk=e8005300fca06421&q=lakeside+controls+business+intelligence+analyst&tk=1bsk4bn1p0k6913r&from=web
+
+#243: PBS Sytems Juniot BI Analyst: https://pbs-systems.automotohr.com/job_details/k5w8lqu6dkh8u8dkvl3402
+
+Note: Note quite sure about these ones, also popped up in the dendrogram. Could be because the description is a little light on the "analytics" language. 
+
+
+
+
+```{r clustering - hierarchical}
+library(dendextend)
+library(ggdendro)
 rownames(data_cluster) <- data_cluster$ID
 
 #calculate distance
@@ -436,12 +464,37 @@ plot(cut(hcd_color,h=100)$upper,
 plot(cut(hcd_color,h=100)$lower[[2]],
      main="Second branch of lower tree with cut at h=100")
 
-pdf("C:/R/hcplot.pdf", width=40, height=15)
-hcd %>% set("branches_k_color",k=10) %>%
-     plot(main="Hierarchical Clustering")
+
+#rotating the dendrogram then printing it to PDF so you can zoom into the individual jobs
+ggdendrogram(hc,rotate=TRUE)
+
+pdf("C:/R/rotatedhcplot.pdf", width=40, height=60)
+ggdendrogram(hc,rotate=TRUE)
 dev.off()
+
+
 ```
 
+```{r - clustering metrics}
+
+library(clValid)
+
+dunns_kmeans <- dunn(data_dist,kmeans3$cluster)
+
+## validation metrics for hierarchical and kmeans. Search ?clValid for more details
+validation_metrics <- clValid(data_cluster[-1],2:5,clMethods=c("hierarchical","kmeans"),validation="internal")
+summary(validation_metrics)
 
 
+```
 
+```{r - assigning clusters to each job}
+
+##turning the list of all the cluster for each job into a dataframe so it can be matched to original dataset 
+kmeans_cluster_assgn <- factor(kmeans3$cluster)
+kmeans_cluster_assgn <- as.data.frame(kmeans_cluster_assgn)
+kmeans_cluster_assgn$ID <- rownames(kmeans_cluster_assgn)
+
+#assigning cluster number to original dataset
+data$cluster <- kmeans_cluster_assgn$kmeans_cluster_assgn[match(data$ID,kmeans_cluster_assgn$ID)]
+```
