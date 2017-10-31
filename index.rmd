@@ -24,6 +24,7 @@ set.seed(42)
 # https://guides.github.com/features/mastering-markdown/
 
 ```
+
 - This document was rendered last on `r Sys.Date()`
 
 ##Authors
@@ -98,6 +99,7 @@ data$search <- plyr::mapvalues(data$search,
                                from=unique(data$search),
                                to=searches)
 ```
+
 - Our data returned `r NumJobs` unique jobs within our search.
 - Considerable data cleaning is required to get to something easy to analyze. This includes stripping remaining HTML from our text, removing custom low value words, and words too common in job postings.
 
@@ -168,7 +170,8 @@ data %>%
      labs(title="Most Frequent Job Titles",x="Job Title") + coord_flip() + 
      presentation+scale_fill_brewer(palette="Reds",direction=-1)
 ```
-- The job search is currently dominated by data scientists, which have become a catch all word. But it's encouraging to see machine learning engineers and developer roles begin to be fleshed out.
+
+- The job landscape is currently dominated by data scientists, which have become a catch all word. But it's encouraging to see machine learning engineers and developer roles begin to be fleshed out.
 - Analytics is surprisingly absent, but is likely wrapped into titles like "Manager, Analytics" which is more inconsistently titled. Let's take a closer look at where our Analytics jobs are.
 
 ```{r most frequent analytics titles}
@@ -206,11 +209,9 @@ data %>%
 
 ```
 
-
 - This seems to resonate with what the Toronto Job environment is as a whole: Consulting, Banking, Telecom and a splattering of retail.
 
 ##A Word Frequency Approach
-
 ```{r remove outliers}
 #remove jobs where the scraper failed, that's nearly always <300 words.
 MinWords <- 300
@@ -250,6 +251,7 @@ data %>%
      presentation+scale_fill_brewer(palette="Reds",direction=-1)+
      labs(y="Frequency of word",x="Unigram",title="Most Frequently Mentioned Unigrams by Search")
 ```
+
 - We've removed most of the job specific language, apply, description and words that don't signal much about what the job is.  We see from a frequency approach, there isn't alot to be gleaned.
 - Some words are mentioned in every posting. Analytics as a search term appeared to have proportionally more management oriented positions.
 - Let's see if our bi-grams have more signal.
@@ -274,6 +276,7 @@ data %>%
           y="Bigram",
           title="Most Frequently Mentioned Bigrams by Search")
 ```
+
 - This is more encouraging than our Unigrams. We have some domain specific phrases, like mental health and real estate. But also *communication skills* and *problem solving* which straddle the hard and soft skills often critical to success in analytics and data science.
 - Some of these phrases may be loaded in a small number of job postings. For example, *digital marketing* being mentioned many times in 1 posting referring to the job title, department, and responsibilities. Let's remove phrases mentioned more than once and see more of the breadth of mentions.
 
@@ -297,6 +300,7 @@ data %>%
      labs(x="Bigrams",y="Frequency",title="Frequency of Bigrams by Distinct Phrases")
 
 ```
+
 - This begins to get a bit more accurate of a assessment of what employers mention. Some of these highlight more useful skills that were drowned out by more freqent mentions. These are things like *project management* or *software engineering*, useful skills for data scientists and analysts.
 
 #A Skills Based Approach
@@ -324,6 +328,7 @@ data %>%
 
      
 ```
+
 - Our list is a few dozen unigram skills that we believe capture the technologies worked in across analytics and data science. Broadly they'll get classified as Big Data, Data Analysis and Visualization to capture the analysis and communication of results, as well as the unique tools for cloud & distributed computing.
 - This seems to suggest excel, R and SQL are in high demand. Let's examine how inter related these concepts are.
 - Are the same jobs looking for R excel and SQL?
@@ -344,6 +349,7 @@ data %>%
      presentation+
      scale_fill_cyclical(values=c("#11335d","#9d1939","#eebd31"))
 ```
+
 - For the skills we have selected, analytics and data scientists have long tails. These are likely associated with the similarity between the big data tools we selected: hive, scala, spark etc, but also suggest companies are casting a wide net in terms of people's experience.
 - For the words we selected, many jobs in marketing analysis and business intelligence don't seem to leverage them as much as other positions.
 - Let's see how theses skills get mentioned together. 
@@ -365,6 +371,7 @@ data %>%
      theme_void()
 
 ```
+
 - The network analysis shown shows a few interesting groupings with darker lines representing more frequently correlated words. A line between two words representing a likelihood to be mentioned together in the same job.
 - Excel and powerpoint don't seem correlated with the rest of our tech stack, despite the frequent mentions of excel (which presumably are the noun and not the verb)
 - Traditional Analytics - R, SAS, and SPSS seem inter-related.
@@ -474,6 +481,7 @@ geom_point(col="#9d1939",size=4)+geom_line(col="#9d1939",size=2)+
 validation_metrics <- clValid(as.matrix(clustering_data),3:10,clMethods="kmeans",
                               validation="internal")
 ```
+
 - Plotting the within cluster sum of squares vs number of clusters produces a scree plot. Here, good clustering would be judged by a sharp "elbow" in the data. We don't see that here.
 - Evaluating instead by Dunn's Metric, which judgues clusters by the means of clusters, the distance between clusters and the within cluster variance.  Here, we find the ideal cluster size to be 7. Let's dive a litle further into our clustering results.
 
@@ -498,6 +506,7 @@ left_join(cluster7results,data,by="ID") %>%
           y="Cluster Number")
      
 ```
+
 - Words were stemmed and unigrams and bigrams that occur in between 10% and 80% of postings were used.
 - In reality, these 7 clusters are really just 3. Most of our jobs are loading in clusters 4,5 and 6.
 - Even these clusters don't seem to represent sensible structure, cluster 4 has jobs in data science, data analyst and marketing analytics highly loaded, which don't seem interrelated at first glance.
@@ -505,7 +514,7 @@ left_join(cluster7results,data,by="ID") %>%
 - K-means is sensitive to multi-dimensional outliers, which are hard to identify. With more work identifiying them and filtering them out, we could achieve more resolution between our clusters. But wasn't achievable in 4 weeks.
 
 ##Conclusion
-- While employers demand a variety of technical skills, it's measurable that softer skills are also important. Not only to generate insight but also to communicate it.
-- R, SQL and excel are demanded tools in Toronto, but not in the same roles. 
+- While employers demand a variety of technical skills, it's measurable that softer skills are also important. The role of analytis in an organization is not only to generate insight but also to communicate it.
+- R, SQL and Excel are most demanded tools in Toronto, but not in the same roles. 
 - Distinct groupings could be seen for technical skillsets in conventional analytics, data visualization, and the big data tech stack.
-- Sizing of the clusters was attempted with K-means clustering but the dataset had too many outliers remaining.
+- This process was repeated clustering on all words in most job description, but clustering still returned ambiguous results.
