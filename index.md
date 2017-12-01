@@ -101,10 +101,6 @@ A Network Diagram of Skills
 -   The most freqent words, R, SQL, and excel no longer seem as inter-related.
 -   Let's look at clustering our data set, to see if these groups are also represented when we cluster on all the words in the posting.
 
-<!-- ##Topic Modelling -->
-<!-- - We should exepct that this data set is well suited for topic modelling. -->
-<!-- - It likely consists of themes within the job postings, we saw earlier with different tech stacks, but also with an emphasis on soft skills. -->
-<!-- - We might also see topics loaded with other aspects of the business, industry specific knowledge like credit modelling in finance, or churn and lift models in marketting. -->
 Conclusion
 ==========
 
