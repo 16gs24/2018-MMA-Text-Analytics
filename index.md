@@ -1,4 +1,4 @@
--   This document was rendered last on 2017-10-31
+-   This document was rendered last on 2017-11-30
 
 Authors
 -------
@@ -10,7 +10,7 @@ Executive Summary
 -----------------
 
 -   This project was produced for the Text Analytics Workshop for the Winter 2018 Masters of Management Analytics Cohort at Queen's University
--   The goal from the outset was to use text analytics techniques developed in class to examine jobs companies have posted on Indeed in Toronto and employ techniques discussed in class including some of tokenization, data cleaning, document clustering, topic modelling, and visualization.
+-   The goal from the outset was to use text analytics techniques developed in class to examine jobs companies have posted on Indeed in Toronto and employ techniques discussed in class including some of: tokenization, data cleaning, document clustering, topic modelling, network analysis and visualization.
 
 Project Rationale
 -----------------
@@ -101,29 +101,13 @@ A Network Diagram of Skills
 -   The most freqent words, R, SQL, and excel no longer seem as inter-related.
 -   Let's look at clustering our data set, to see if these groups are also represented when we cluster on all the words in the posting.
 
-Clustering
-==========
-
--   An initial pass using hierarchical clustering revealed a half dozen outlier jobs, which were removed, the dendrogram will be omitted due to it's size and for the sake of brevity.
--   Let's instead see how K-means clustering performs, this being a semi-supervised problem. We would expect some of the search terms to load together in the same cluster if they are similar jobs. Perhaps Data Scientist and Machine learning in 1 cluster, with marketing analytics in another.
-
-<img src="Figs/30 clusters-1.png" style="display: block; margin: auto;" />
-
--   Plotting the within cluster sum of squares vs number of clusters produces a scree plot. Here, good clustering would be judged by a sharp "elbow" in the data. We don't see that here.
--   Evaluating instead by Dunn's Metric, which judgues clusters by the means of clusters, the distance between clusters and the within cluster variance. Here, we find the ideal cluster size to be 7. Let's dive a litle further into our clustering results.
-
-<img src="Figs/7 cluster performance-1.png" style="display: block; margin: auto;" />
-
--   Words were stemmed and unigrams and bigrams that occur in between 10% and 80% of postings were used.
--   In reality, these 7 clusters are really just 3. Most of our jobs are loading in clusters 4,5 and 6.
--   Even these clusters don't seem to represent sensible structure, cluster 4 has jobs in data science, data analyst and marketing analytics highly loaded, which don't seem interrelated at first glance.
--   Clusters 1,2,3 and 7 are just outliers, and don't seem to measure anything.
--   K-means is sensitive to multi-dimensional outliers, which are hard to identify. With more work identifiying them and filtering them out, we could achieve more resolution between our clusters. But wasn't achievable in 4 weeks.
-
+<!-- ##Topic Modelling -->
+<!-- - We should exepct that this data set is well suited for topic modelling. -->
+<!-- - It likely consists of themes within the job postings, we saw earlier with different tech stacks, but also with an emphasis on soft skills. -->
+<!-- - We might also see topics loaded with other aspects of the business, industry specific knowledge like credit modelling in finance, or churn and lift models in marketting. -->
 Conclusion
 ----------
 
--   While employers demand a variety of technical skills, it's measurable that softer skills are also important. The role of analytis in an organization is not only to generate insight but also to communicate it.
+-   While employers demand a variety of technical skills, it's measurable that softer skills are also important. The role of analytics in an organization is not only to generate insight but also to communicate it.
 -   R, SQL and Excel are most demanded tools in Toronto, but not in the same roles.
--   Distinct groupings could be seen for technical skillsets in conventional analytics, data visualization, and the big data tech stack.
--   This process was repeated clustering on all words in most job description, but clustering still returned ambiguous results.
+-   Distinct groupings could be seen for skillsets in conventional analytics tools, data visualization & dashboarding, and the big data tech stack.
