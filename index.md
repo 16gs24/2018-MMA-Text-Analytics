@@ -108,6 +108,6 @@ A Network Diagram of Skills
 Conclusion
 ----------
 
--   While employers demand a variety of technical skills, it's measurable that softer skills are also important. The role of analytics in an organization is not only to generate insight but also to communicate it.
+-   While employers demand a variety of technical skills, it's notable that softer skills are also important. The role of analytics in an organization is not only to generate insight but also to communicate it.
 -   R, SQL and Excel are most demanded tools in Toronto, but not in the same roles.
 -   Distinct groupings could be seen for skillsets in conventional analytics tools, data visualization & dashboarding, and the big data tech stack.
