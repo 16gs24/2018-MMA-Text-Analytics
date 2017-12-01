@@ -106,7 +106,7 @@ A Network Diagram of Skills
 <!-- - It likely consists of themes within the job postings, we saw earlier with different tech stacks, but also with an emphasis on soft skills. -->
 <!-- - We might also see topics loaded with other aspects of the business, industry specific knowledge like credit modelling in finance, or churn and lift models in marketting. -->
 Conclusion
-----------
+==========
 
 -   While employers demand a variety of technical skills, it's notable that softer skills are also important. The role of analytics in an organization is not only to generate insight but also to communicate it.
 -   R, SQL and Excel are most demanded tools in Toronto, but not in the same roles.
